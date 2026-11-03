@@ -12,30 +12,21 @@ const markSizes = {
   lg: 'h-10 w-10',
 }
 
-/**
- * A small forged binder: two ruled pages held by a copper spine.
- * Drawn geometry, not an illustration.
- */
+/** The two-line wordmark symbol: the second line is the product's marker. */
 export function BrandMark({ className, size = 'md' }: BrandMarkProps) {
   return (
     <span
       className={cn(
-        'relative inline-grid shrink-0 place-items-center overflow-hidden rounded-md border border-accent/60 bg-accent text-accent-foreground',
+        'relative inline-grid shrink-0 place-items-center overflow-hidden rounded-[3px] border border-white/10 bg-[var(--ink)]',
         markSizes[size],
         className
       )}
       aria-hidden="true"
     >
-      <svg
-        viewBox="0 0 32 32"
-        className="h-full w-full"
-        fill="none"
-        focusable="false"
-      >
-        <path d="M8 7.5h13.5a2.5 2.5 0 0 1 0 5H13" stroke="currentColor" strokeWidth="2.4" />
-        <path d="M8 16h16" stroke="currentColor" strokeWidth="2.4" />
-        <path d="M8 24h11" stroke="currentColor" strokeWidth="2.4" />
-        <path d="M8 5v22" stroke="currentColor" strokeWidth="1.2" opacity=".55" />
+      <svg viewBox="0 0 32 32" className="h-full w-full" fill="none" focusable="false">
+        <path d="M6.5 10h19" stroke="#F5F6F8" strokeWidth="3" strokeLinecap="square" />
+        <rect x="6.5" y="16" width="19" height="8" rx="1" fill="#FFE45C" />
+        <path d="M9 20h12.5" stroke="#12263A" strokeWidth="1.8" strokeLinecap="square" />
       </svg>
     </span>
   )
@@ -60,7 +51,7 @@ export function BrandLockup({
       <span className="min-w-0">
         <span
           className={cn(
-            'block truncate font-semibold tracking-[var(--tracking-snug)]',
+            'block truncate font-[700] tracking-[var(--tracking-snug)]',
             size === 'sm' ? 'text-sm' : 'text-base',
             tone === 'light' ? 'text-ink' : 'text-sidebar-ink'
           )}
@@ -70,7 +61,7 @@ export function BrandLockup({
         {showTagline && (
           <span
             className={cn(
-              'block truncate text-[0.625rem] font-medium uppercase tracking-[0.12em]',
+              'block truncate text-xs font-medium',
               tone === 'light' ? 'text-ink-muted' : 'text-sidebar-muted'
             )}
           >
