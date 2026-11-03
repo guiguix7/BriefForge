@@ -10,6 +10,7 @@ const AiSuggestionSchema = z.object({
   tipo: z.enum(['funcionalidade', 'requisito', 'duvida', 'risco', 'entregavel']),
   titulo: z.string().min(1),
   descricao: z.string().min(1),
+  trecho_origem: z.string().min(1).optional(),
   prioridade_sugerida: z
     .enum(['baixa', 'media', 'alta', 'critica'])
     .optional(),
@@ -28,9 +29,30 @@ const AiAnalysisSchema = z.object({
 type AiSuggestionType = z.infer<typeof AiSuggestionSchema>
 type RawAiOutput = z.infer<typeof AiAnalysisSchema>
 
+/**
+ * Divide o briefing em frases preservando o texto original. O provedor usa
+ * esse recorte para que cada proposta aponte para uma passagem real, em vez
+ * de repetir a própria descrição como se fosse citação.
+ */
+function splitSentences(briefing: string): string[] {
+  return briefing
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+}
+
+function quoteFor(briefing: string, keywords: string[]): string | undefined {
+  const sentences = splitSentences(briefing)
+  const normalized = sentences.map((sentence) => sentence.toLowerCase())
+  const index = normalized.findIndex((sentence) =>
+    keywords.some((keyword) => sentence.includes(keyword))
+  )
+  return index >= 0 ? sentences[index] : undefined
+}
+
 export class MockAiProvider implements AiProvider {
   private scenario: AiScenario = 'sucesso'
-  private delayMs = 2500
+  private delayMs = 1800
 
   setScenario(scenario: AiScenario) {
     this.scenario = scenario
@@ -51,21 +73,16 @@ export class MockAiProvider implements AiProvider {
       case 'timeout':
         throw new Error('timeout')
       case 'json-invalido':
-        return {
-          funcionalidades: null as unknown as AiSuggestionType[],
-          requisitos: [],
-          duvidas: [],
-          riscos: [],
-          entregaveis: [],
-        } as unknown as AiAnalysisOutput
+        throw new Error('json-invalido')
       case 'sucesso':
-      default:
+      default: {
         const raw = this.generateMockOutput(input.briefing)
         const validated = AiAnalysisSchema.safeParse(raw)
         if (!validated.success) {
           throw new Error('json-invalido')
         }
         return validated.data
+      }
     }
   }
 
@@ -87,12 +104,14 @@ export class MockAiProvider implements AiProvider {
         tipo: 'funcionalidade',
         titulo: 'Site institucional responsivo',
         descricao: 'Página principal com informações do negócio.',
+        trecho_origem: quoteFor(briefing, ['site', 'página']),
         prioridade_sugerida: 'alta',
       })
       entregaveis.push({
         tipo: 'entregavel',
         titulo: 'Site publicado',
         descricao: 'Site hospedado e acessível em domínio próprio.',
+        trecho_origem: quoteFor(briefing, ['site', 'domínio', 'publicado']),
         prioridade_sugerida: 'alta',
       })
     }
@@ -102,6 +121,7 @@ export class MockAiProvider implements AiProvider {
         tipo: 'funcionalidade',
         titulo: 'Cardápio online com fotos',
         descricao: 'Exibição de produtos com imagens, preços e descrições.',
+        trecho_origem: quoteFor(briefing, ['cardápio', 'cardapio']),
         prioridade_sugerida: 'alta',
       })
     }
@@ -111,12 +131,14 @@ export class MockAiProvider implements AiProvider {
         tipo: 'requisito',
         titulo: 'Pagamento por Pix',
         descricao: 'Geração de QR Code Pix para pagamento de pedidos.',
+        trecho_origem: quoteFor(briefing, ['pix', 'pagamento']),
         prioridade_sugerida: 'alta',
       })
       entregaveis.push({
         tipo: 'entregavel',
         titulo: 'QR Code Pix',
         descricao: 'Código QR para pagamento presencial ou delivery.',
+        trecho_origem: quoteFor(briefing, ['pix', 'pagamento']),
         prioridade_sugerida: 'media',
       })
     }
@@ -124,14 +146,16 @@ export class MockAiProvider implements AiProvider {
     if (lower.includes('instagram')) {
       riscos.push({
         tipo: 'risco',
-        titulo: 'Integração com Instagram',
-        descricao: 'A API do Instagram pode limitar exibição automática de fotos.',
+        titulo: 'Dependência da API do Instagram',
+        descricao: 'A API do Instagram pode limitar a exibição automática de fotos.',
+        trecho_origem: quoteFor(briefing, ['instagram']),
         severidade: 'alta',
       })
       duvidas.push({
         tipo: 'duvida',
         titulo: 'Integração com Instagram',
-        descricao: 'Dúvida sobre a integração com Instagram.',
+        descricao: 'É obrigatória a integração com Instagram ou apenas uma sugestão?',
+        trecho_origem: quoteFor(briefing, ['instagram']),
         pergunta: 'É obrigatória a integração com Instagram ou apenas sugestão?',
         prioridade_sugerida: 'media',
       })
@@ -141,7 +165,8 @@ export class MockAiProvider implements AiProvider {
       duvidas.push({
         tipo: 'duvida',
         titulo: 'Orçamento disponível',
-        descricao: 'Dúvida sobre o orçamento disponível para o projeto.',
+        descricao: 'Qual o valor máximo que o cliente pretende investir?',
+        trecho_origem: quoteFor(briefing, ['orçamento', 'budget']),
         pergunta: 'Qual o valor máximo que o cliente pretende investir?',
         prioridade_sugerida: 'alta',
       })
@@ -151,7 +176,8 @@ export class MockAiProvider implements AiProvider {
       duvidas.push({
         tipo: 'duvida',
         titulo: 'Prazo de entrega',
-        descricao: 'Dúvida sobre o prazo de entrega do projeto.',
+        descricao: 'Qual o prazo máximo necessário para entrega?',
+        trecho_origem: quoteFor(briefing, ['prazo', 'urgente']),
         pergunta: 'Qual o prazo máximo necessário para entrega?',
         prioridade_sugerida: 'media',
       })
@@ -162,6 +188,7 @@ export class MockAiProvider implements AiProvider {
         tipo: 'funcionalidade',
         titulo: 'Área administrativa',
         descricao: 'Painel para atualização de preços e produtos.',
+        trecho_origem: quoteFor(briefing, ['administr', 'admin']),
         prioridade_sugerida: 'media',
       })
     }
@@ -171,6 +198,77 @@ export class MockAiProvider implements AiProvider {
         tipo: 'funcionalidade',
         titulo: 'Formulário de contato',
         descricao: 'Campo para clientes enviarem mensagens.',
+        trecho_origem: quoteFor(briefing, ['contato']),
+        prioridade_sugerida: 'media',
+      })
+    }
+
+    if (lower.includes('agendamento') || lower.includes('agendar')) {
+      funcionalidades.push({
+        tipo: 'funcionalidade',
+        titulo: 'Agendamento online',
+        descricao: 'Pacientes escolhem horário e profissional sem ligar.',
+        trecho_origem: quoteFor(briefing, ['agendamento', 'agendar']),
+        prioridade_sugerida: 'alta',
+      })
+    }
+
+    if (lower.includes('prontuário') || lower.includes('prontuario')) {
+      requisitos.push({
+        tipo: 'requisito',
+        titulo: 'Prontuário digital',
+        descricao: 'Registro do atendimento vinculado ao paciente.',
+        trecho_origem: quoteFor(briefing, ['prontuário', 'prontuario']),
+        prioridade_sugerida: 'alta',
+      })
+    }
+
+    if (lower.includes('lgpd') || lower.includes('dados sensíveis')) {
+      requisitos.push({
+        tipo: 'requisito',
+        titulo: 'Conformidade com a LGPD',
+        descricao: 'Controle de acesso e registro de consentimento dos pacientes.',
+        trecho_origem: quoteFor(briefing, ['lgpd', 'dados sensíveis', 'dados sensiveis']),
+        prioridade_sugerida: 'critica',
+      })
+    }
+
+    if (lower.includes('rastreamento') || lower.includes('tempo real')) {
+      funcionalidades.push({
+        tipo: 'funcionalidade',
+        titulo: 'Rastreamento em tempo real',
+        descricao: 'Acompanhamento da entrega pelo cliente e pela central.',
+        trecho_origem: quoteFor(briefing, ['rastreamento', 'tempo real']),
+        prioridade_sugerida: 'alta',
+      })
+    }
+
+    if (lower.includes('sms') || lower.includes('notificação')) {
+      funcionalidades.push({
+        tipo: 'funcionalidade',
+        titulo: 'Notificação ao cliente',
+        descricao: 'Avisos automáticos quando a entrega sair para distribuição.',
+        trecho_origem: quoteFor(briefing, ['sms', 'notificação', 'notificacao']),
+        prioridade_sugerida: 'media',
+      })
+    }
+
+    if (lower.includes('offline')) {
+      requisitos.push({
+        tipo: 'requisito',
+        titulo: 'Funcionamento offline',
+        descricao: 'O app deve registrar entregas mesmo sem conexão.',
+        trecho_origem: quoteFor(briefing, ['offline', 'conexão', 'conexao']),
+        prioridade_sugerida: 'alta',
+      })
+    }
+
+    if (lower.includes('relatório') || lower.includes('relatorio')) {
+      entregaveis.push({
+        tipo: 'entregavel',
+        titulo: 'Relatórios de entrega',
+        descricao: 'Relatórios semanais de desempenho por rota e motorista.',
+        trecho_origem: quoteFor(briefing, ['relatório', 'relatorio']),
         prioridade_sugerida: 'media',
       })
     }

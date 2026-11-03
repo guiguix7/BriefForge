@@ -1,10 +1,34 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BriefForge</title>
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="BriefForge organiza o briefing do cliente, a revisão das propostas e o escopo aprovado em um dossiê de projeto rastreável."
+    />
+    <meta name="theme-color" content="#f3f4ef" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>BriefForge — do briefing ao escopo acordado</title>
+    <script>
+      // Apply the saved theme before the first paint to avoid a flash.
+      (function () {
+        try {
+          var stored = localStorage.getItem('briefforge-theme')
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+          document.documentElement.setAttribute('data-theme', theme)
+          document.documentElement.style.colorScheme = theme
+        } catch (error) {
+          document.documentElement.setAttribute('data-theme', 'light')
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

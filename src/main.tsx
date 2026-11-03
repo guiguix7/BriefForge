@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { ThemeProvider } from '@/app/theme'
 import { ToastProvider } from '@/components/ui/toast'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import './index.css'
 import { router } from '@/app/routes'
@@ -13,11 +14,13 @@ useStore.getState().seedIfEmpty()
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
-      <ToastProvider>
-        <ErrorBoundary>
-          <RouterProvider router={router} />
-        </ErrorBoundary>
-      </ToastProvider>
+      <TooltipProvider delayDuration={350}>
+        <ToastProvider>
+          <ErrorBoundary>
+            <RouterProvider router={router} />
+          </ErrorBoundary>
+        </ToastProvider>
+      </TooltipProvider>
     </ThemeProvider>
   </StrictMode>
 )

@@ -1,217 +1,497 @@
-import { useStore } from '@/store'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import * as React from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import {
+  ArrowUpRight,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react'
+import { useStore, type Client } from '@/store'
+import { useToast } from '@/components/ui/toast'
+import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
-  DrawerDescription,
-  DrawerClose,
-  DrawerFooter,
+  DrawerBody,
 } from '@/components/ui/drawer'
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Separator } from '@/components/ui/separator'
-import { Plus, Search, Edit2, Trash2, Save } from 'lucide-react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as React from 'react'
-import type { Client } from '@/store'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Form, FormField } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/ui/page-header'
+import { Select } from '@/components/ui/select'
+import { SectionHeading } from '@/components/ui/section-heading'
+import { IconTooltip } from '@/components/ui/tooltip'
+import { formatDate } from '@/lib/utils'
 
 const clientSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  email: z.string().email('E-mail inválido'),
-  phone: z.string().optional(),
+  name: z.string().trim().min(2, 'Informe pelo menos 2 caracteres.'),
+  email: z.string().trim().min(1, 'Informe um e-mail.').email('Use um e-mail válido.'),
+  phone: z.string().trim().optional(),
 })
 
-type ClientFormData = z.infer<typeof clientSchema>
+type ClientForm = z.infer<typeof clientSchema>
 
 export function ClientsPage() {
-  const { clients, addClient, updateClient, deleteClient } = useStore()
+  const {
+    clients,
+    projects,
+    suggestions,
+    tasks,
+    addClient,
+    updateClient,
+    deleteClient,
+  } = useStore()
+  const { toast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [search, setSearch] = React.useState('')
-  const [open, setOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<Client | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(
-    null
+  const [sortBy, setSortBy] = React.useState<'recent' | 'name' | 'projects'>(
+    'recent'
   )
-  const [confirmDeleteName, setConfirmDeleteName] = React.useState('')
+  const [formOpen, setFormOpen] = React.useState(false)
+  const [editing, setEditing] = React.useState<Client | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<Client | null>(null)
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
-  } = useForm<ClientFormData>({
+    formState: { errors, isSubmitting },
+  } = useForm<ClientForm>({
     resolver: zodResolver(clientSchema),
     defaultValues: { name: '', email: '', phone: '' },
   })
 
-  const filtered = clients.filter(
-    (c) =>
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const totalProjects = clients.reduce((sum, c) => sum + c.projectCount, 0)
-
-  const openCreate = () => {
+  const openCreate = React.useCallback(() => {
     setEditing(null)
     reset({ name: '', email: '', phone: '' })
-    setOpen(true)
-  }
+    setFormOpen(true)
+  }, [reset])
+
+  React.useEffect(() => {
+    if (searchParams.get('novo') === '1') {
+      openCreate()
+      const next = new URLSearchParams(searchParams)
+      next.delete('novo')
+      setSearchParams(next, { replace: true })
+    }
+  }, [openCreate, searchParams, setSearchParams])
 
   const openEdit = (client: Client) => {
     setEditing(client)
-    reset({ name: client.name, email: client.email, phone: client.phone || '' })
-    setOpen(true)
+    reset({
+      name: client.name,
+      email: client.email,
+      phone: client.phone ?? '',
+    })
+    setFormOpen(true)
   }
 
-  const onSubmit = (data: ClientFormData) => {
+  const onSubmit = (data: ClientForm) => {
     if (editing) {
-      updateClient(editing.id, data)
+      updateClient(editing.id, {
+        name: data.name,
+        email: data.email,
+        phone: data.phone?.trim() || undefined,
+      })
+      toast({
+        title: 'Cliente atualizado',
+        description: `Os dados de ${data.name} foram salvos.`,
+        variant: 'success',
+      })
     } else {
-      addClient(data)
+      addClient({
+        name: data.name,
+        email: data.email,
+        phone: data.phone?.trim() || undefined,
+      })
+      toast({
+        title: 'Cliente cadastrado',
+        description: `${data.name} já pode receber um projeto.`,
+        variant: 'success',
+      })
     }
-    setOpen(false)
+    setFormOpen(false)
+    setEditing(null)
+    reset()
   }
 
-  const confirmDelete = (id: string, name: string) => {
-    setConfirmDeleteId(id)
-    setConfirmDeleteName(name)
+  const confirmDelete = () => {
+    if (!deleteTarget) return
+    const projectCount = projects.filter(
+      (project) => project.clientId === deleteTarget.id
+    ).length
+    deleteClient(deleteTarget.id)
+    toast({
+      title: 'Cliente excluído',
+      description:
+        projectCount > 0
+          ? `${deleteTarget.name} e ${projectCount} projeto(s) vinculado(s) foram removidos.`
+          : `${deleteTarget.name} foi removido.`,
+      variant: 'success',
+    })
+    setDeleteTarget(null)
   }
 
-  const doDelete = () => {
-    if (confirmDeleteId) {
-      deleteClient(confirmDeleteId)
-      setConfirmDeleteId(null)
-      setConfirmDeleteName('')
-    }
-  }
+  const projectCount = (clientId: string) =>
+    projects.filter((project) => project.clientId === clientId).length
+  const activeProjectCount = (clientId: string) =>
+    projects.filter(
+      (project) => project.clientId === clientId && project.status === 'ativo'
+    ).length
+
+  const filtered = clients
+    .filter((client) => {
+      const term = search.trim().toLowerCase()
+      if (!term) return true
+      return (
+        client.name.toLowerCase().includes(term) ||
+        client.email.toLowerCase().includes(term) ||
+        (client.phone ?? '').toLowerCase().includes(term)
+      )
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name)
+      if (sortBy === 'projects')
+        return projectCount(b.id) - projectCount(a.id)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    })
+
+  const deleteProjectIds = deleteTarget
+    ? projects
+        .filter((project) => project.clientId === deleteTarget.id)
+        .map((project) => project.id)
+    : []
+  const deleteSuggestionCount = suggestions.filter((suggestion) =>
+    deleteProjectIds.includes(suggestion.projectId)
+  ).length
+  const deleteTaskCount = tasks.filter((task) =>
+    deleteProjectIds.includes(task.projectId)
+  ).length
+
+  const activeClients = clients.filter(
+    (client) => activeProjectCount(client.id) > 0
+  ).length
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Clientes</h1>
-          <p className="text-sm text-muted">
-            Gerencie seus clientes e projetos
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Clientes"
+        description="Quem contrata o trabalho. Cada cliente reúne seus projetos, briefings e escopos."
+        actions={
           <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" /> Novo cliente
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Novo cliente
           </Button>
+        }
+      />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+          <span>
+            {clients.length} {clients.length === 1 ? 'cliente' : 'clientes'}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span>{activeClients} com projeto ativo</span>
+          <span aria-hidden="true">·</span>
+          <Link
+            to="/projetos"
+            className="font-medium text-ink underline-offset-4 hover:underline"
+          >
+            Ver projetos
+          </Link>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-64">
+            <label htmlFor="client-search" className="sr-only">
+              Buscar clientes por nome, e-mail ou telefone
+            </label>
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle"
+              aria-hidden="true"
+            />
+            <Input
+              id="client-search"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar cliente..."
+              className="pl-9 pr-9"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-sm text-ink-muted hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                aria-label="Limpar busca"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          <div className="w-full sm:w-40">
+            <label htmlFor="client-sort" className="sr-only">
+              Ordenar clientes
+            </label>
+            <Select
+              id="client-sort"
+              value={sortBy}
+              onChange={(event) =>
+                setSortBy(event.target.value as typeof sortBy)
+              }
+            >
+              <option value="recent">Mais recentes</option>
+              <option value="name">Nome A–Z</option>
+              <option value="projects">Mais projetos</option>
+            </Select>
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted" />
-          <Input
-            placeholder="Buscar cliente..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+      <p className="sr-only" aria-live="polite">
+        {filtered.length} clientes encontrados.
+      </p>
+
+      {clients.length === 0 ? (
+        <EmptyState
+          icon={<Users className="h-5 w-5" />}
+          title="Nenhum cliente cadastrado"
+          description="Cadastre o primeiro cliente para criar um projeto e começar pelo briefing."
+          action={
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Cadastrar primeiro cliente
+            </Button>
+          }
+          className="rounded-lg border border-line bg-surface"
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<Search className="h-5 w-5" />}
+          title="Nenhum cliente encontrado"
+          description="A busca não retornou resultados. Ajuste o termo ou limpe o filtro."
+          action={
+            <Button variant="secondary" onClick={() => setSearch('')}>
+              Limpar busca
+            </Button>
+          }
+          className="rounded-lg border border-line bg-surface"
+        />
+      ) : (
+        <section aria-labelledby="clients-list-title">
+          <SectionHeading
+            title="Carteira de clientes"
+            description={`${filtered.length} ${
+              filtered.length === 1 ? 'registro' : 'registros'
+            } ${search ? 'para a busca atual' : 'no workspace'}.`}
           />
-        </div>
-      </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
-            {filtered.length} cliente(s)
-          </CardTitle>
-          <Badge variant="secondary" className="ml-auto">
-            {totalProjects} projeto(s) no total
-          </Badge>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto border-b border-border">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border bg-accent/50 text-sm text-muted">
-                  <th className="p-4 font-medium">Cliente</th>
-                  <th className="p-4 font-medium">E-mail</th>
-                  <th className="p-4 font-medium text-right">Projetos</th>
-                  <th className="p-4 font-medium text-right">Ações</th>
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface md:block">
+            <table className="w-full min-w-[44rem] text-left text-sm">
+              <caption className="sr-only">
+                Clientes com contato, projetos e ações
+              </caption>
+              <thead className="border-b border-line bg-surface-muted/60">
+                <tr className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+                  <th scope="col" className="px-4 py-2.5">Cliente</th>
+                  <th scope="col" className="px-4 py-2.5">Contato</th>
+                  <th scope="col" className="px-4 py-2.5">Projetos</th>
+                  <th scope="col" className="px-4 py-2.5">Cadastro</th>
+                  <th scope="col" className="px-4 py-2.5 text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
-                {filtered.length > 0 ? (
-                  filtered.map((client) => (
+              <tbody className="divide-y divide-line">
+                {filtered.map((client) => {
+                  const total = projectCount(client.id)
+                  const active = activeProjectCount(client.id)
+                  return (
                     <tr
                       key={client.id}
-                      className="hover:bg-accent/30 transition-colors"
+                      className="transition-colors hover:bg-surface-muted/40"
                     >
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-lg border border-border flex items-center justify-center text-muted text-sm font-medium">
-                            {client.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-medium">{client.name}</div>
-                            <div className="text-xs text-muted">
-                              {new Date(client.createdAt).toLocaleDateString(
-                                'pt-BR'
-                              )}
-                            </div>
+                      <th scope="row" className="px-4 py-3 font-normal">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar name={client.name} />
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-ink">
+                              {client.name}
+                            </p>
+                            {client.phone && (
+                              <p className="mt-0.5 truncate text-xs text-ink-muted md:hidden">
+                                {client.phone}
+                              </p>
+                            )}
                           </div>
                         </div>
-                      </td>
-                      <td className="p-4 text-muted">
-                        {client.email}
-                      </td>
-                      <td className="p-4 text-right">
-                        <span className="font-medium">
-                          {client.projectCount}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="p-2"
-                          onClick={() => openEdit(client)}
+                      </th>
+                      <td className="px-4 py-3">
+                        <a
+                          href={`mailto:${client.email}`}
+                          className="inline-flex max-w-56 items-center gap-1.5 truncate text-ink-muted underline-offset-4 hover:text-ink hover:underline"
                         >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="p-2 text-danger"
-                          onClick={() =>
-                            confirmDelete(client.id, client.name)
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{client.email}</span>
+                        </a>
+                        {client.phone && (
+                          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-subtle">
+                            <Phone className="h-3 w-3" aria-hidden="true" />
+                            {client.phone}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {total === 0 ? (
+                          <span className="text-ink-muted">Nenhum</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-2">
+                            <span className="font-medium tabular text-ink">
+                              {total}
+                            </span>
+                            {active > 0 && (
+                              <Badge tone="success" dot>
+                                {active} ativo{active === 1 ? '' : 's'}
+                              </Badge>
+                            )}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-ink-muted">
+                        <time dateTime={client.createdAt}>
+                          {formatDate(client.createdAt)}
+                        </time>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <IconTooltip label={`Editar ${client.name}`}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => openEdit(client)}
+                              aria-label={`Editar ${client.name}`}
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </IconTooltip>
+                          <IconTooltip label={`Excluir ${client.name}`}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() => setDeleteTarget(client)}
+                              className="text-danger hover:bg-danger-soft hover:text-danger"
+                              aria-label={`Excluir ${client.name}`}
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </IconTooltip>
+                        </div>
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="p-8 text-center text-muted">
-                      Nenhum cliente encontrado.
-                    </td>
-                  </tr>
-                )}
+                  )
+                })}
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Drawer criar/editar cliente */}
-      <Drawer open={open} onOpenChange={setOpen}>
+          <ul className="divide-y divide-line rounded-lg border border-line bg-surface md:hidden">
+            {filtered.map((client) => {
+              const total = projectCount(client.id)
+              const active = activeProjectCount(client.id)
+              return (
+                <li key={client.id} className="space-y-3 px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar name={client.name} size="lg" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">
+                        {client.name}
+                      </p>
+                      <a
+                        href={`mailto:${client.email}`}
+                        className="mt-0.5 block truncate text-xs text-ink-muted underline-offset-4 hover:underline"
+                      >
+                        {client.email}
+                      </a>
+                      {client.phone && (
+                        <p className="mt-0.5 text-xs text-ink-subtle">
+                          {client.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                    <span>
+                      {total} {total === 1 ? 'projeto' : 'projetos'}
+                    </span>
+                    {active > 0 && (
+                      <Badge tone="success" dot>
+                        {active} ativo{active === 1 ? '' : 's'}
+                      </Badge>
+                    )}
+                    <span className="ml-auto">
+                      desde {formatDate(client.createdAt)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => openEdit(client)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      Editar
+                    </Button>
+                    {total > 0 && (
+                      <Button asChild variant="ghost" size="sm" className="flex-1">
+                        <Link to={`/projetos?cliente=${client.id}`}>
+                          Ver projetos
+                          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Link>
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setDeleteTarget(client)}
+                      className="text-danger hover:bg-danger-soft hover:text-danger"
+                      aria-label={`Excluir ${client.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+
+      <Drawer
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open)
+          if (!open) setEditing(null)
+        }}
+      >
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>
@@ -219,101 +499,116 @@ export function ClientsPage() {
             </DrawerTitle>
             <DrawerDescription>
               {editing
-                ? 'Altere os dados do cliente.'
-                : 'Preencha os dados para cadastrar um novo cliente.'}
+                ? 'Atualize os dados de contato deste cliente.'
+                : 'O cliente precisa existir antes de receber um projeto.'}
             </DrawerDescription>
-            <DrawerClose />
           </DrawerHeader>
-          <Form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
-            <FormField>
-              <FormLabel>Nome</FormLabel>
-              <FormItem>
-                <Input {...register('name')} placeholder="Ex.: Confeitaria Doce Massa" />
-              </FormItem>
-              {errors.name && <FormMessage>{errors.name.message}</FormMessage>}
-            </FormField>
-            <FormField>
-              <FormLabel>E-mail</FormLabel>
-              <FormItem>
+          <Form
+            onSubmit={handleSubmit(onSubmit)}
+            className="flex min-h-0 flex-1 flex-col space-y-0"
+          >
+            <DrawerBody className="space-y-5">
+              <FormField
+                label="Nome do cliente"
+                htmlFor="client-name"
+                error={errors.name?.message}
+                required
+              >
                 <Input
-                  {...register('email')}
+                  id="client-name"
+                  placeholder="Ex.: Confeitaria Doce Massa"
+                  autoComplete="organization"
+                  aria-invalid={Boolean(errors.name)}
+                  aria-describedby={errors.name ? 'client-name-error' : undefined}
+                  {...register('name')}
+                />
+              </FormField>
+              <FormField
+                label="E-mail"
+                htmlFor="client-email"
+                error={errors.email?.message}
+                required
+              >
+                <Input
+                  id="client-email"
                   type="email"
                   placeholder="contato@empresa.com.br"
+                  autoComplete="email"
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? 'client-email-error' : undefined}
+                  {...register('email')}
                 />
-              </FormItem>
-              {errors.email && <FormMessage>{errors.email.message}</FormMessage>}
-            </FormField>
-            <FormField>
-              <FormLabel>Telefone (opcional)</FormLabel>
-              <FormItem>
+              </FormField>
+              <FormField
+                label="Telefone"
+                htmlFor="client-phone"
+                hint="Opcional. Use o formato que o cliente prefere."
+                error={errors.phone?.message}
+              >
                 <Input
-                  {...register('phone')}
+                  id="client-phone"
+                  type="tel"
                   placeholder="(11) 99999-9999"
+                  autoComplete="tel"
+                  aria-invalid={Boolean(errors.phone)}
+                  aria-describedby={
+                    errors.phone ? 'client-phone-error' : 'client-phone-hint'
+                  }
+                  {...register('phone')}
                 />
-              </FormItem>
-            </FormField>
-            <Separator />
+              </FormField>
+            </DrawerBody>
             <DrawerFooter>
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
+                variant="secondary"
+                onClick={() => setFormOpen(false)}
+                disabled={isSubmitting}
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={editing ? false : false}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {editing ? 'Salvar alterações' : 'Criar cliente'}
+              <Button type="submit" loading={isSubmitting}>
+                {editing ? 'Salvar alterações' : 'Cadastrar cliente'}
               </Button>
             </DrawerFooter>
           </Form>
         </DrawerContent>
       </Drawer>
 
-      {/* Confirmação de exclusão */}
-      {confirmDeleteId && (
-        <Drawer open={true} onOpenChange={() => setConfirmDeleteId(null)}>
-          <DrawerContent className="max-w-[420px]">
-            <DrawerHeader>
-              <DrawerTitle>Excluir cliente</DrawerTitle>
-              <DrawerDescription>
-                Esta ação não pode ser desfeita.
-              </DrawerDescription>
-              <DrawerClose />
-            </DrawerHeader>
-            <DrawerContent className="p-6 space-y-4">
-              <p className="text-sm">
-                Tem certeza de que deseja excluir <strong>"{confirmDeleteName}"</strong>?
-              </p>
-              <p className="text-sm text-muted">
-                Todos os projetos vinculados a este cliente também serão excluídos.
-              </p>
-              <Separator />
-            </DrawerContent>
-            <DrawerFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setConfirmDeleteId(null)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={doDelete}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Sim, excluir
-              </Button>
-            </DrawerFooter>
-          </DrawerContent>
-        </Drawer>
-      )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+        title="Excluir cliente"
+        description={
+          deleteTarget ? (
+            <>
+              <span className="block">
+                Excluir <strong className="text-ink">{deleteTarget.name}</strong>{' '}
+                é permanente.
+              </span>
+              {deleteProjectIds.length > 0 ? (
+                <span className="mt-2 block">
+                  Também serão excluídos {deleteProjectIds.length}{' '}
+                  {deleteProjectIds.length === 1 ? 'projeto' : 'projetos'},{' '}
+                  {deleteSuggestionCount}{' '}
+                  {deleteSuggestionCount === 1 ? 'sugestão' : 'sugestões'} e{' '}
+                  {deleteTaskCount}{' '}
+                  {deleteTaskCount === 1 ? 'tarefa' : 'tarefas'} vinculados.
+                </span>
+              ) : (
+                <span className="mt-2 block">
+                  Este cliente não possui projetos vinculados.
+                </span>
+              )}
+            </>
+          ) : null
+        }
+        confirmLabel="Excluir cliente"
+        onConfirm={confirmDelete}
+        destructive
+      />
     </div>
   )
 }
-
-

@@ -1,50 +1,60 @@
 import * as React from 'react'
-import * as LabelPrimitive from '@radix-ui/react-label'
 import { cn } from '@/lib/utils'
+import { Label } from '@/components/ui/label'
 
 const Form = React.forwardRef<
   HTMLFormElement,
   React.FormHTMLAttributes<HTMLFormElement>
 >(({ className, ...props }, ref) => (
-  <form
-    ref={ref}
-    className={cn('space-y-8', className)}
-    {...props}
-  />
+  <form ref={ref} className={cn('space-y-5', className)} {...props} />
 ))
 Form.displayName = 'Form'
 
-const FormField = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn('mb-4', className)}
-    {...props}
-  />
-))
-FormField.displayName = 'FormField'
+interface FormFieldProps {
+  label: string
+  htmlFor: string
+  error?: string
+  hint?: string
+  required?: boolean
+  className?: string
+  children: React.ReactNode
+}
 
-const FormLabel = React.forwardRef<
-  React.ElementRef<typeof LabelPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <LabelPrimitive.Root
-    ref={ref}
-    className={cn('text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70', className)}
-    {...props}
-  />
-))
-FormLabel.displayName = LabelPrimitive.Root.displayName
+function FormField({
+  label,
+  htmlFor,
+  error,
+  hint,
+  required,
+  className,
+  children,
+}: FormFieldProps) {
+  const errorId = `${htmlFor}-error`
+  const hintId = `${htmlFor}-hint`
 
-const FormItem = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('mb-4', className)} {...props} />
-))
-FormItem.displayName = 'FormItem'
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <Label htmlFor={htmlFor} required={required}>
+        {label}
+      </Label>
+      {children}
+      {hint && !error && (
+        <p id={hintId} className="text-xs leading-relaxed text-ink-muted">
+          {hint}
+        </p>
+      )}
+      {error && (
+        <p
+          id={errorId}
+          role="alert"
+          className="text-xs font-medium leading-relaxed text-danger"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const FormMessage = React.forwardRef<
   HTMLParagraphElement,
@@ -52,7 +62,8 @@ const FormMessage = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn('mt-2 text-sm text-danger', className)}
+    role="alert"
+    className={cn('mt-1.5 text-xs font-medium text-danger', className)}
     {...props}
   >
     {children}
@@ -60,4 +71,16 @@ const FormMessage = React.forwardRef<
 ))
 FormMessage.displayName = 'FormMessage'
 
-export { Form, FormField, FormLabel, FormItem, FormMessage }
+const FormHint = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLParagraphElement>
+>(({ className, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn('mt-1.5 text-xs text-ink-muted', className)}
+    {...props}
+  />
+))
+FormHint.displayName = 'FormHint'
+
+export { Form, FormField, FormMessage, FormHint }

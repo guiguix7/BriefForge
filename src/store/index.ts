@@ -68,49 +68,43 @@ export interface HistoryEvent {
 }
 
 interface AppState {
-  // Sessão
   user: User | null
   token: string | null
   isAuthenticated: boolean
+  hasSeeded: boolean
+
   login: (email: string, password: string) => void
   logout: () => void
   seedIfEmpty: () => void
 
-  // Dados
   clients: Client[]
   projects: Project[]
   suggestions: Suggestion[]
   tasks: Task[]
   history: HistoryEvent[]
 
-  // Clientes
   addClient: (client: Omit<Client, 'id' | 'projectCount' | 'createdAt'>) => void
   updateClient: (id: string, data: Partial<Client>) => void
   deleteClient: (id: string) => void
 
-  // Projetos
-  addProject: (project: Omit<Project, 'id' | 'createdAt'>) => void
+  addProject: (project: Omit<Project, 'id' | 'createdAt'>) => string
   updateProject: (id: string, data: Partial<Project>) => void
   deleteProject: (id: string) => void
 
-  // Briefing/análise
   setProjectBriefing: (projectId: string, text: string) => void
   setProjectAnalysis: (
     projectId: string,
     suggestions: Omit<Suggestion, 'id' | 'projectId' | 'status'>[]
   ) => void
 
-  // Sugestões
   updateSuggestion: (id: string, data: Partial<Suggestion>) => void
   approveSuggestion: (id: string) => void
   rejectSuggestion: (id: string) => void
 
-  // Tarefas
-  addTask: (task: Omit<Task, 'id' | 'createdAt'>) => void
+  addTask: (task: Omit<Task, 'id' | 'createdAt'>) => string
   updateTask: (id: string, data: Partial<Task>) => void
   deleteTask: (id: string) => void
 
-  // Histórico
   addHistory: (
     projectId: string,
     event: Omit<HistoryEvent, 'id' | 'projectId' | 'createdAt'>
@@ -119,20 +113,43 @@ interface AppState {
 
 const now = () => new Date().toISOString()
 
+const daysAgo = (days: number) => {
+  const date = new Date()
+  date.setDate(date.getDate() - days)
+  date.setHours(9 + (days % 8), (days * 7) % 60, 0, 0)
+  return date.toISOString()
+}
+
+const nameFromEmail = (email: string): string => {
+  const local = email.split('@')[0]?.replace(/[._-]+/g, ' ').trim()
+  if (!local) return 'Minha conta'
+  return local
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
 export const useStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // Sessão
       user: null,
       token: null,
       isAuthenticated: false,
-      login: (_email, _password) => {
-        const user: User = { id: '1', name: 'Usuário Demo', email: 'demo@briefforge.com' }
-        set({ user, token: 'demo-token', isAuthenticated: true })
+      hasSeeded: false,
+
+      login: (email, _password) => {
+        const user: User = {
+          id: crypto.randomUUID(),
+          name: nameFromEmail(email),
+          email,
+        }
+        set({ user, token: crypto.randomUUID(), isAuthenticated: true })
       },
       logout: () => set({ user: null, token: null, isAuthenticated: false }),
 
-      // Dados (preenchidos via seed quando o localStorage estiver vazio)
+      // Dados
       clients: [],
       projects: [],
       suggestions: [],
@@ -144,93 +161,213 @@ export const useStore = create<AppState>()(
         set((state) => ({
           clients: [
             ...state.clients,
-            { ...client, id: crypto.randomUUID(), projectCount: 0, createdAt: now() },
+            {
+              ...client,
+              id: crypto.randomUUID(),
+              projectCount: 0,
+              createdAt: now(),
+            },
           ],
         })),
       updateClient: (id, data) =>
         set((state) => ({
-          clients: state.clients.map((c) => (c.id === id ? { ...c, ...data } : c)),
+          clients: state.clients.map((client) =>
+            client.id === id ? { ...client, ...data } : client
+          ),
         })),
       deleteClient: (id) =>
-        set((state) => ({
-          clients: state.clients.filter((c) => c.id !== id),
-          projects: state.projects.filter((p) => p.clientId !== id),
-        })),
+        set((state) => {
+          const projectIds = new Set(
+            state.projects
+              .filter((project) => project.clientId === id)
+              .map((project) => project.id)
+          )
+
+          return {
+            clients: state.clients.filter((client) => client.id !== id),
+            projects: state.projects.filter(
+              (project) => project.clientId !== id
+            ),
+            suggestions: state.suggestions.filter(
+              (suggestion) => !projectIds.has(suggestion.projectId)
+            ),
+            tasks: state.tasks.filter((task) => !projectIds.has(task.projectId)),
+            history: state.history.filter(
+              (event) => !projectIds.has(event.projectId)
+            ),
+          }
+        }),
 
       // Projetos
-      addProject: (project) =>
+      addProject: (project) => {
+        const id = crypto.randomUUID()
         set((state) => ({
           projects: [
             ...state.projects,
-            { ...project, id: crypto.randomUUID(), createdAt: now() },
+            {
+              ...project,
+              id,
+              createdAt: now(),
+            },
           ],
-          clients: state.clients.map((c) =>
-            c.id === project.clientId ? { ...c, projectCount: c.projectCount + 1 } : c
+          clients: state.clients.map((client) =>
+            client.id === project.clientId
+              ? { ...client, projectCount: client.projectCount + 1 }
+              : client
           ),
-        })),
+        }))
+        return id
+      },
       updateProject: (id, data) =>
-        set((state) => ({
-          projects: state.projects.map((p) => (p.id === id ? { ...p, ...data } : p)),
-        })),
+        set((state) => {
+          const previous = state.projects.find((project) => project.id === id)
+          const projects = state.projects.map((project) =>
+            project.id === id ? { ...project, ...data } : project
+          )
+
+          // Keep the client project counters correct when a project changes owner.
+          if (previous && data.clientId && data.clientId !== previous.clientId) {
+            return {
+              projects,
+              clients: state.clients.map((client) => {
+                if (client.id === previous.clientId) {
+                  return {
+                    ...client,
+                    projectCount: Math.max(0, client.projectCount - 1),
+                  }
+                }
+                if (client.id === data.clientId) {
+                  return { ...client, projectCount: client.projectCount + 1 }
+                }
+                return client
+              }),
+            }
+          }
+
+          return { projects }
+        }),
       deleteProject: (id) =>
-        set((state) => ({
-          projects: state.projects.filter((p) => p.id !== id),
-          suggestions: state.suggestions.filter((s) => s.projectId !== id),
-          tasks: state.tasks.filter((t) => t.projectId !== id),
-          history: state.history.filter((h) => h.projectId !== id),
-        })),
+        set((state) => {
+          const project = state.projects.find((item) => item.id === id)
+          return {
+            projects: state.projects.filter((item) => item.id !== id),
+            suggestions: state.suggestions.filter(
+              (suggestion) => suggestion.projectId !== id
+            ),
+            tasks: state.tasks.filter((task) => task.projectId !== id),
+            history: state.history.filter((event) => event.projectId !== id),
+            clients: project
+              ? state.clients.map((client) =>
+                  client.id === project.clientId
+                    ? {
+                        ...client,
+                        projectCount: Math.max(0, client.projectCount - 1),
+                      }
+                    : client
+                )
+              : state.clients,
+          }
+        }),
 
       // Briefing/análise
       setProjectBriefing: (projectId, text) =>
         set((state) => ({
-          projects: state.projects.map((p) =>
-            p.id === projectId ? { ...p, briefingText: text } : p
+          projects: state.projects.map((project) =>
+            project.id === projectId
+              ? { ...project, briefingText: text }
+              : project
           ),
         })),
       setProjectAnalysis: (projectId, suggestions) =>
         set((state) => {
-          const newSuggestions: Suggestion[] = suggestions.map((s) => ({
-            ...s,
+          const newSuggestions: Suggestion[] = suggestions.map((suggestion) => ({
+            ...suggestion,
             id: crypto.randomUUID(),
             projectId,
             status: 'pendente',
           }))
+
+          // A re-analysis replaces the previous pending proposals, but never
+          // discards decisions the user already made.
+          const preserved = state.suggestions.filter(
+            (suggestion) =>
+              suggestion.projectId !== projectId ||
+              suggestion.status !== 'pendente'
+          )
+
           return {
-            suggestions: [...state.suggestions, ...newSuggestions],
+            suggestions: [...preserved, ...newSuggestions],
           }
         }),
 
       // Sugestões
       updateSuggestion: (id, data) =>
         set((state) => ({
-          suggestions: state.suggestions.map((s) =>
-            s.id === id ? { ...s, ...data } : s
+          suggestions: state.suggestions.map((suggestion) =>
+            suggestion.id === id ? { ...suggestion, ...data } : suggestion
           ),
         })),
       approveSuggestion: (id) =>
         set((state) => ({
-          suggestions: state.suggestions.map((s) =>
-            s.id === id ? { ...s, status: 'aprovada', approvedAt: now() } : s
+          suggestions: state.suggestions.map((suggestion) =>
+            suggestion.id === id
+              ? {
+                  ...suggestion,
+                  status: 'aprovada',
+                  approvedAt: now(),
+                  rejectedAt: undefined,
+                }
+              : suggestion
           ),
         })),
       rejectSuggestion: (id) =>
         set((state) => ({
-          suggestions: state.suggestions.map((s) =>
-            s.id === id ? { ...s, status: 'rejeitada', rejectedAt: now() } : s
+          suggestions: state.suggestions.map((suggestion) =>
+            suggestion.id === id
+              ? {
+                  ...suggestion,
+                  status: 'rejeitada',
+                  rejectedAt: now(),
+                  approvedAt: undefined,
+                }
+              : suggestion
           ),
         })),
 
       // Tarefas
-      addTask: (task) =>
+      addTask: (task) => {
+        const id = crypto.randomUUID()
         set((state) => ({
-          tasks: [...state.tasks, { ...task, id: crypto.randomUUID(), createdAt: now() }],
-        })),
+          tasks: [
+            ...state.tasks,
+            {
+              ...task,
+              id,
+              createdAt: now(),
+              completedAt: task.status === 'concluido' ? now() : undefined,
+            },
+          ],
+        }))
+        return id
+      },
       updateTask: (id, data) =>
         set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...data } : t)),
+          tasks: state.tasks.map((task) => {
+            if (task.id !== id) return task
+
+            const nextStatus = data.status ?? task.status
+            const completedAt =
+              nextStatus === 'concluido'
+                ? task.completedAt ?? now()
+                : undefined
+
+            return { ...task, ...data, completedAt }
+          }),
         })),
       deleteTask: (id) =>
-        set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) })),
+        set((state) => ({
+          tasks: state.tasks.filter((task) => task.id !== id),
+        })),
 
       // Histórico
       addHistory: (projectId, event) =>
@@ -242,69 +379,167 @@ export const useStore = create<AppState>()(
         })),
 
       seedIfEmpty: () => {
-        const state = useStore.getState()
-        if (state.clients.length > 0) return
+        const state = get()
+        if (state.hasSeeded) return
+
+        if (state.clients.length > 0) {
+          set({ hasSeeded: true })
+          return
+        }
 
         const clientIds: string[] = []
-        seedClients.forEach((c) => {
+        const clients: Client[] = seedClients.map((client, index) => {
           const id = crypto.randomUUID()
           clientIds.push(id)
-          set((s) => ({
-            clients: [
-              ...s.clients,
-              { ...c, id, projectCount: 0, createdAt: now() },
-            ],
-          }))
+          return {
+            ...client,
+            id,
+            projectCount: 0,
+            createdAt: daysAgo(45 - index * 10),
+          }
         })
 
+        // Seed projects point at a client by position. The two Doce Massa
+        // projects are intentionally owned by the same client.
+        const projectClientIndex = [0, 1, 2, 0]
         const projectIds: string[] = []
-        seedProjects.forEach((p, i) => {
+        const projects: Project[] = seedProjects.map((project, index) => {
           const id = crypto.randomUUID()
           projectIds.push(id)
-          const clientId = clientIds[i % clientIds.length]
-          set((s) => ({
-            projects: [...s.projects, { ...p, id, clientId, createdAt: now() }],
-            clients: s.clients.map((c) =>
-              c.id === clientId ? { ...c, projectCount: c.projectCount + 1 } : c
-            ),
-          }))
+          return {
+            name: project.name,
+            status: project.status,
+            briefingText: project.briefingText,
+            id,
+            clientId:
+              clientIds[projectClientIndex[index] ?? index % clientIds.length],
+            createdAt: daysAgo(project.createdDaysAgo),
+          }
         })
 
-        seedSuggestions.forEach((s, i) => {
-          const projectId = projectIds[i % projectIds.length]
+        const withProjectCounts = clients.map((client) => ({
+          ...client,
+          projectCount: projects.filter(
+            (project) => project.clientId === client.id
+          ).length,
+        }))
+
+        const suggestionIdByProjectAndTitle = new Map<string, string>()
+        const suggestions: Suggestion[] = seedSuggestions.map((suggestion) => {
           const id = crypto.randomUUID()
-          set((st) => ({
-            suggestions: [
-              ...st.suggestions,
-              { ...s, id, projectId, status: 'pendente' },
-            ],
-          }))
+          suggestionIdByProjectAndTitle.set(
+            `${suggestion.projectIndex}:${suggestion.title}`,
+            id
+          )
+          const {
+            projectIndex,
+            decidedDaysAgo,
+            status = 'pendente',
+            ...data
+          } = suggestion
+          const decidedAt =
+            decidedDaysAgo === undefined ? undefined : daysAgo(decidedDaysAgo)
+
+          return {
+            ...data,
+            id,
+            projectId: projectIds[projectIndex],
+            status,
+            approvedAt:
+              status === 'aprovada' || status === 'convertida'
+                ? decidedAt
+                : undefined,
+            rejectedAt: status === 'rejeitada' ? decidedAt : undefined,
+            convertedToTaskId: undefined,
+          }
         })
 
-        seedTasks.forEach((t, i) => {
-          const projectId = projectIds[i % projectIds.length]
+        const tasks: Task[] = seedTasks.map((task) => {
+          const {
+            projectIndex,
+            createdDaysAgo,
+            completedDaysAgo,
+            suggestionTitle,
+            ...data
+          } = task
           const id = crypto.randomUUID()
-          set((st) => ({
-            tasks: [...st.tasks, { ...t, id, projectId, createdAt: now() }],
-          }))
+          const suggestionId = suggestionTitle
+            ? suggestionIdByProjectAndTitle.get(
+                `${projectIndex}:${suggestionTitle}`
+              )
+            : undefined
+
+          return {
+            ...data,
+            id,
+            projectId: projectIds[projectIndex],
+            suggestionId,
+            createdAt: daysAgo(createdDaysAgo),
+            completedAt:
+              task.status === 'concluido'
+                ? daysAgo(
+                    completedDaysAgo ??
+                      Math.max(1, Math.min(createdDaysAgo - 1, 2))
+                  )
+                : undefined,
+          }
         })
 
-        seedHistory.forEach((h, i) => {
-          const projectId = projectIds[i % projectIds.length]
-          const id = crypto.randomUUID()
-          set((st) => ({
-            history: [
-              ...st.history,
-              { ...h, id, projectId, createdAt: now() },
-            ],
-          }))
+        const taskIdBySuggestionId = new Map(
+          tasks
+            .filter(
+              (task): task is Task & { suggestionId: string } =>
+                Boolean(task.suggestionId)
+            )
+            .map((task) => [task.suggestionId, task.id])
+        )
+
+        const suggestionsWithTaskLinks = suggestions.map((suggestion) => {
+          if (suggestion.status !== 'convertida') return suggestion
+          const taskId = taskIdBySuggestionId.get(suggestion.id)
+          return taskId
+            ? { ...suggestion, convertedToTaskId: taskId }
+            : suggestion
+        })
+
+        const history: HistoryEvent[] = seedHistory.map((event) => {
+          const {
+            projectIndex,
+            daysAgo: eventAge,
+            ...data
+          } = event
+          return {
+            ...data,
+            id: crypto.randomUUID(),
+            projectId: projectIds[projectIndex],
+            createdAt: daysAgo(eventAge),
+          }
+        })
+
+        set({
+          hasSeeded: true,
+          clients: withProjectCounts,
+          projects,
+          suggestions: suggestionsWithTaskLinks,
+          tasks,
+          history,
         })
       },
     }),
     {
       name: 'briefforge-storage',
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+        hasSeeded: state.hasSeeded,
+        clients: state.clients,
+        projects: state.projects,
+        suggestions: state.suggestions,
+        tasks: state.tasks,
+        history: state.history,
+      }),
     }
   )
 )
-

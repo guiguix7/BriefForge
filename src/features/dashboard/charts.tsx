@@ -1,290 +1,375 @@
-import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  BarChart,
-  Bar,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SectionHeading } from '@/components/ui/section-heading'
+import {
+  TASK_PRIORITY,
+  TASK_STATUS,
+  type Tone,
+  pluralize,
+} from '@/lib/domain'
+import { formatDate, formatShortDate } from '@/lib/utils'
 import type { Task } from '@/store'
 
-const STATUS_COLORS: Record<string, string> = {
-  pendente: '#475569',
-  andamento: '#1D4ED8',
-  revisao: '#92400E',
-  concluido: '#166534',
+const toneBar: Record<Tone, string> = {
+  neutral: 'bg-ink-subtle',
+  accent: 'bg-accent',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
+  info: 'bg-info',
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  pendente: 'Pendente',
-  andamento: 'Em andamento',
-  revisao: 'Revisão',
-  concluido: 'Concluído',
+const toneDot: Record<Tone, string> = {
+  neutral: 'bg-ink-subtle',
+  accent: 'bg-accent',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  danger: 'bg-danger',
+  info: 'bg-info',
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  baixa: '#475569',
-  media: '#1D4ED8',
-  alta: '#9A3412',
-  critica: '#991B1B',
+interface DistributionRow {
+  key: string
+  label: string
+  tone: Tone
+  count: number
 }
 
-const PRIORITY_LABELS: Record<string, string> = {
-  baixa: 'Baixa',
-  media: 'Média',
-  alta: 'Alta',
-  critica: 'Crítica',
-}
-
-interface PieChartProps {
+function DistributionTable({
+  title,
+  description,
+  rows,
+  total,
+  emptyMessage,
+}: {
   title: string
-  data: { name: string; value: number; color: string }[]
-  emptyMessage?: string
-}
-
-function PieChartCard({ title, data, emptyMessage }: PieChartProps) {
-  const total = data.reduce((sum, d) => sum + d.value, 0)
+  description: string
+  rows: DistributionRow[]
+  total: number
+  emptyMessage: string
+}) {
+  const headingId = `distribution-${title
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')}`
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {data.length === 0 ? (
-          <div className="h-48 flex flex-col items-center justify-center text-muted">
-            <p>{emptyMessage || 'Sem dados disponíveis.'}</p>
-          </div>
-        ) : (
-          <div className="flex flex-col lg:flex-row gap-6 items-center">
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie
-                  data={data}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  dataKey="value"
-                  labelLine={false}
-                  label={{ fill: '#fff', fontSize: 10, position: 'inside' }}
-                >
-                  {data.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                  <Tooltip />
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex flex-col gap-2">
-              {data.map((entry) => {
-                const pct = total > 0 ? Math.round((entry.value / total) * 100) : 0
-                return (
-                  <div key={entry.name} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" />
-                    <span className="text-sm text-muted">{entry.name}</span>
-                    <span className="ml-auto text-sm font-medium">
-                      {entry.value} ({pct}%)
+    <section aria-labelledby={headingId} className="border-t border-line pt-5">
+      <SectionHeading
+        id={headingId}
+        title={title}
+        description={description}
+      />
+
+      {total === 0 ? (
+        <p className="rounded-md border border-line bg-surface px-4 py-5 text-sm text-ink-muted">
+          {emptyMessage}
+        </p>
+      ) : (
+        <table className="w-full text-left text-sm">
+          <caption className="sr-only">
+            {title}. {description} Total de {total} tarefas.
+          </caption>
+          <thead>
+            <tr className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-ink-muted">
+              <th scope="col" className="pb-2 font-semibold">
+                Categoria
+              </th>
+              <th scope="col" className="pb-2 text-right font-semibold">
+                Tarefas
+              </th>
+              <th scope="col" className="hidden pb-2 pl-4 font-semibold sm:table-cell">
+                Distribuição
+              </th>
+              <th scope="col" className="pb-2 pl-3 text-right font-semibold">
+                Participação
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line-subtle">
+            {rows.map((row) => {
+              const percentage = total > 0 ? Math.round((row.count / total) * 100) : 0
+
+              return (
+                <tr key={row.key} className="align-middle">
+                  <th scope="row" className="py-2.5 pr-3 font-normal">
+                    <span className="inline-flex items-center gap-2 text-ink">
+                      <span
+                        className={`h-2 w-2 shrink-0 rounded-full ${toneDot[row.tone]}`}
+                        aria-hidden="true"
+                      />
+                      {row.label}
                     </span>
-                  </div>
-                )
-              })}
-              <div className="mt-2 pt-2 border-t border-border flex items-center gap-2">
-                <span className="text-sm font-medium text-text">Total:</span>
-                <span className="ml-auto text-sm font-bold">{total}</span>
-              </div>
+                  </th>
+                  <td className="py-2.5 text-right font-mono text-xs tabular text-ink">
+                    {row.count}
+                  </td>
+                  <td className="hidden py-2.5 pl-4 sm:table-cell">
+                    <div
+                      className="h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken"
+                      aria-hidden="true"
+                    >
+                      <div
+                        className={`h-full rounded-full ${toneBar[row.tone]}`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </td>
+                  <td className="py-2.5 pl-3 text-right font-mono text-xs tabular text-ink-muted">
+                    {percentage}%
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
+  )
+}
+
+export function TasksByStatusChart({ tasks }: { tasks: Task[] }) {
+  const rows: DistributionRow[] = (
+    Object.keys(TASK_STATUS) as Task['status'][]
+  )
+    .sort((a, b) => TASK_STATUS[a].order - TASK_STATUS[b].order)
+    .map((status) => ({
+      key: status,
+      label: TASK_STATUS[status].label,
+      tone: TASK_STATUS[status].tone,
+      count: tasks.filter((task) => task.status === status).length,
+    }))
+
+  return (
+    <DistributionTable
+      title="Status das tarefas"
+      description="Onde o trabalho está agora, incluindo o que já foi concluído."
+      rows={rows}
+      total={tasks.length}
+      emptyMessage="Nenhuma tarefa criada. As tarefas nascem de itens aprovados na revisão."
+    />
+  )
+}
+
+export function TasksByPriorityChart({ tasks }: { tasks: Task[] }) {
+  const rows: DistributionRow[] = (
+    Object.keys(TASK_PRIORITY) as Task['priority'][]
+  )
+    .sort((a, b) => TASK_PRIORITY[b].order - TASK_PRIORITY[a].order)
+    .map((priority) => ({
+      key: priority,
+      label: TASK_PRIORITY[priority].label,
+      tone: TASK_PRIORITY[priority].tone,
+      count: tasks.filter((task) => task.priority === priority).length,
+    }))
+
+  return (
+    <DistributionTable
+      title="Prioridade das tarefas"
+      description="Peso relativo do trabalho registrado neste projeto."
+      rows={rows}
+      total={tasks.length}
+      emptyMessage="Nenhuma prioridade registrada enquanto não houver tarefas."
+    />
+  )
+}
+
+function startOfWeek(date: Date): Date {
+  const start = new Date(date)
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - start.getDay())
+  return start
+}
+
+export function CompletionByWeek({ tasks }: { tasks: Task[] }) {
+  const completed = tasks.filter(
+    (task) => task.status === 'concluido' && task.completedAt
+  )
+
+  const currentWeek = startOfWeek(new Date())
+  const weeks = Array.from({ length: 6 }, (_, index) => {
+    const start = new Date(currentWeek)
+    start.setDate(start.getDate() - (5 - index) * 7)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 7)
+
+    const count = completed.filter((task) => {
+      const completion = new Date(task.completedAt as string)
+      return completion >= start && completion < end
+    }).length
+
+    return { start, end, count }
+  })
+
+  const max = Math.max(1, ...weeks.map((week) => week.count))
+  const averageDays =
+    completed.length === 0
+      ? null
+      : Math.max(
+          0,
+          Math.round(
+            completed.reduce((total, task) => {
+              const start = new Date(task.createdAt).getTime()
+              const end = new Date(task.completedAt as string).getTime()
+              return total + Math.max(0, end - start) / 86_400_000
+            }, 0) / completed.length
+          )
+        )
+
+  return (
+    <section aria-labelledby="completion-trend-title" className="border-t border-line pt-5">
+      <SectionHeading
+        id="completion-trend-title"
+        title="Ritmo de conclusão"
+        description="Tarefas concluídas nas últimas seis semanas, a partir da data de conclusão."
+        actions={
+          <Badge tone="neutral">
+            {pluralize(completed.length, 'concluída', 'concluídas')}
+          </Badge>
+        }
+      />
+
+      {completed.length === 0 ? (
+        <p className="rounded-md border border-line bg-surface px-4 py-5 text-sm text-ink-muted">
+          Nenhuma tarefa concluída ainda. O ritmo aparece aqui quando a primeira
+          tarefa for concluída.
+        </p>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_13rem]">
+          <div>
+            <p className="sr-only">
+              Gráfico de tarefas concluídas por semana. Total de{' '}
+              {completed.length} tarefas concluídas.
+            </p>
+            <div
+              role="list"
+              aria-label="Tarefas concluídas por semana"
+              className="flex h-40 items-end gap-2 border-b border-line px-1 pb-0 sm:gap-3"
+            >
+              {weeks.map((week) => (
+                <div
+                  key={week.start.toISOString()}
+                  role="listitem"
+                  aria-label={`Semana de ${formatDate(week.start)} a ${formatDate(
+                    new Date(week.end.getTime() - 86_400_000)
+                  )}: ${week.count} ${
+                    week.count === 1 ? 'tarefa concluída' : 'tarefas concluídas'
+                  }`}
+                  className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5"
+                >
+                  <span className="font-mono text-[0.6875rem] tabular text-ink">
+                    {week.count}
+                  </span>
+                  <div
+                    className={`w-full max-w-10 rounded-t-sm ${
+                      week.count > 0 ? 'bg-accent/80' : 'bg-line-strong'
+                    }`}
+                    style={{
+                      height:
+                        week.count === 0
+                          ? '2px'
+                          : `${Math.max(10, (week.count / max) * 100)}%`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className="max-w-full truncate text-[0.625rem] leading-4 text-ink-muted">
+                    {formatShortDate(week.start)}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
 
-interface TasksByStatusChartProps {
-  tasks: Task[]
-}
-
-export function TasksByStatusChart({ tasks }: TasksByStatusChartProps) {
-  const counts: Record<string, number> = {}
-  tasks.forEach((t) => {
-    counts[t.status] = (counts[t.status] || 0) + 1
-  })
-
-  const data = Object.entries(counts).map(([status, value]) => ({
-    name: STATUS_LABELS[status] || status,
-    value,
-    color: STATUS_COLORS[status] || '#6B7280',
-  }))
-
-  return (
-    <PieChartCard
-      title="Tarefas por status"
-      data={data}
-      emptyMessage="Sem tarefas para exibir."
-    />
-  )
-}
-
-interface TasksByPriorityChartProps {
-  tasks: Task[]
-}
-
-export function TasksByPriorityChart({ tasks }: TasksByPriorityChartProps) {
-  const counts: Record<string, number> = {}
-  tasks.forEach((t) => {
-    counts[t.priority] = (counts[t.priority] || 0) + 1
-  })
-
-  const data = Object.entries(counts).map(([priority, value]) => ({
-    name: PRIORITY_LABELS[priority] || priority,
-    value,
-    color: PRIORITY_COLORS[priority] || '#6B7280',
-  }))
-
-  return (
-    <PieChartCard
-      title="Tarefas por prioridade"
-      data={data}
-      emptyMessage="Sem tarefas para exibir."
-    />
-  )
-}
-
-interface CriticalTasksProps {
-  tasks: Task[]
-}
-
-export function CriticalTasks({ tasks }: CriticalTasksProps) {
-  const openCritical = tasks.filter(
-    (t) => t.priority === 'critica' && t.status !== 'concluido'
-  )
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm">Críticas abertas</CardTitle>
-        <Badge variant="destructive" className="ml-auto">
-          {openCritical.length}
-        </Badge>
-      </CardHeader>
-      <CardContent>
-        {openCritical.length === 0 ? (
-          <p className="text-sm text-success">Nenhuma tarefa crítica em aberto.</p>
-        ) : (
-          <div className="space-y-2">
-            {openCritical.map((t) => (
-              <div key={t.id} className="flex items-center justify-between gap-2">
-                <span className="text-sm">{t.title}</span>
-                <Badge variant="destructive" className="text-xs">
-                  Crítica
-                </Badge>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-interface CompletionByWeekProps {
-  tasks: Task[]
-}
-
-export function CompletionByWeek({ tasks }: CompletionByWeekProps) {
-  const completed = tasks.filter((t) => t.status === 'concluido' && t.completedAt)
-
-  // Últimas 6 semanas
-  const data = []
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i * 7)
-    d.setDate(d.getDate() - d.getDay())
-    const count = completed.filter((t) => {
-      const cd = new Date(t.completedAt!)
-      cd.setDate(cd.getDate() - cd.getDay())
-      return cd.getTime() === d.getTime()
-    }).length
-    data.push({
-      name: `S${d.getDate()}/${d.getMonth() + 1}`,
-      value: count,
-    })
-  }
-
-  const hasData = completed.length > 0
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Concluídas por semana</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {hasData ? (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="value" fill="#4F46E5" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <p className="text-sm text-muted">Nenhuma tarefa concluída ainda.</p>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-interface AvgCompletionTimeProps {
-  tasks: Task[]
-}
-
-export function AvgCompletionTime({ tasks }: AvgCompletionTimeProps) {
-  const completed = tasks.filter((t) => t.status === 'concluido' && t.completedAt)
-
-  let avgDays = 0
-  if (completed.length > 0) {
-    const totalDays = completed.reduce((sum, t) => {
-      const start = new Date(t.createdAt).getTime()
-      const end = new Date(t.completedAt!).getTime()
-      return sum + (end - start) / (1000 * 60 * 60 * 24)
-    }, 0)
-    avgDays = Math.round(totalDays / completed.length)
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Tempo médio de conclusão</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-2xl font-bold text-primary">{avgDays} dias</p>
-            <p className="text-xs text-muted">
-              Média entre tarefas concluídas
-            </p>
-          </div>
-          <Badge
-            variant="secondary"
-            className="text-xs"
-          >
-            {completed.length} concluída(s)
-          </Badge>
+          <dl className="divide-y divide-line border-y border-line lg:border-y-0 lg:border-l lg:border-line lg:pl-5">
+            <div className="flex items-baseline justify-between gap-3 py-3 lg:block">
+              <dt className="text-xs text-ink-muted">Tempo médio de conclusão</dt>
+              <dd className="font-mono text-lg font-medium tabular text-ink lg:mt-1">
+                {averageDays === null
+                  ? '—'
+                  : `${averageDays} ${averageDays === 1 ? 'dia' : 'dias'}`}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 py-3 lg:block">
+              <dt className="text-xs text-ink-muted">Concluídas nas 6 semanas</dt>
+              <dd className="font-mono text-lg font-medium tabular text-ink lg:mt-1">
+                {completed.length}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 py-3 lg:block">
+              <dt className="text-xs text-ink-muted">Abertas agora</dt>
+              <dd className="font-mono text-lg font-medium tabular text-ink lg:mt-1">
+                {tasks.filter((task) => task.status !== 'concluido').length}
+              </dd>
+            </div>
+          </dl>
         </div>
-        {completed.length === 0 && (
-          <p className="text-sm text-muted mt-3">Sem tarefas concluídas para calcular média.</p>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </section>
+  )
+}
+
+export function CriticalTasks({ tasks }: { tasks: Task[] }) {
+  const openCritical = tasks
+    .filter(
+      (task) => task.priority === 'critica' && task.status !== 'concluido'
+    )
+    .sort(
+      (a, b) =>
+        TASK_STATUS[a.status].order - TASK_STATUS[b.status].order ||
+        a.title.localeCompare(b.title)
+    )
+
+  return (
+    <section aria-labelledby="critical-tasks-title" className="border-t border-line pt-5">
+      <SectionHeading
+        id="critical-tasks-title"
+        title="Tarefas críticas em aberto"
+        description="Prioridade crítica que ainda exige execução ou decisão."
+        actions={
+          openCritical.length > 0 ? (
+            <Badge tone="danger" dot>
+              {openCritical.length}
+            </Badge>
+          ) : undefined
+        }
+      />
+
+      {openCritical.length === 0 ? (
+        <div className="flex items-start gap-2.5 rounded-md border border-line bg-surface px-4 py-3">
+          <CheckCircle2
+            className="mt-0.5 h-4 w-4 shrink-0 text-success"
+            aria-hidden="true"
+          />
+          <p className="text-sm text-ink-muted">
+            Nenhuma tarefa crítica em aberto neste projeto.
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-line-subtle rounded-md border border-line bg-surface">
+          {openCritical.map((task) => (
+            <li
+              key={task.id}
+              className="flex flex-col gap-1.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <Link
+                to={`/projetos/${task.projectId}/tarefas`}
+                className="inline-flex items-start gap-2 text-sm font-medium text-ink underline-offset-4 hover:underline"
+              >
+                <AlertTriangle
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger"
+                  aria-hidden="true"
+                />
+                {task.title}
+              </Link>
+              <span className="text-xs text-ink-muted">
+                {TASK_STATUS[task.status].label}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }

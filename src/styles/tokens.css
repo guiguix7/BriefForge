@@ -1,186 +1,243 @@
 @import "tailwindcss";
-@import "@fontsource/inter";
-@import "@fontsource/jetbrains-mono";
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
+
+/* ==========================================================================
+   BriefForge design tokens
+   A studio-dossier system: paper, ink, copper, verdigris.
+   Light and dark themes are two working conditions of the same material.
+   ========================================================================== */
 
 :root {
-  /* Tokens — tema claro */
-  --bg: #F8FAFC;
-  --surface: #FFFFFF;
-  --border: #E2E8F0;
-  --text: #0F172A;
-  --text-muted: #475569;
-  --primary: #4F46E5;
-  --primary-hover: #4338CA;
-  --primary-foreground: #FFFFFF;
-  --danger: #B91C1C;
-  --focus-ring: #4F46E5;
+  /* Ground and surfaces */
+  --canvas: #f3f4ef;
+  --surface: #fcfcfa;
+  --surface-raised: #ffffff;
+  --surface-muted: #eceee8;
+  --surface-sunken: #e7eae2;
 
-  --radius: 0.5rem;        /* 8px cartões */
-  --radius-sm: 0.375rem;   /* 6px botões/campos */
-  --shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  /* Lines */
+  --line: #d9ddd3;
+  --line-strong: #c5cbbf;
+  --line-subtle: #e6e9e1;
 
-  /* Tokens auxiliares do shadcn/ui */
-  --background: #FFFFFF;
-  --foreground: #0F172A;
-  --secondary: #F1F5F9;
-  --secondary-foreground: #0F172A;
-  --muted: #F1F5F9;
-  --muted-foreground: #64748B;
-  --accent: #F1F5F9;
-  --accent-foreground: #0F172A;
-  --popover: #FFFFFF;
-  --popover-foreground: #0F172A;
-  --card: #FFFFFF;
-  --card-foreground: #0F172A;
-  --input: #E2E8F0;
-  --ring: #4F46E5;
+  /* Text */
+  --ink: #1b201c;
+  --ink-muted: #5a625a;
+  --ink-subtle: #737c73;
 
-  /* Status: texto / fundo */
-  --status-pending-text: #475569;
-  --status-pending-bg: #F1F5F9;
-  --status-in-progress-text: #1D4ED8;
-  --status-in-progress-bg: #DBEAFE;
-  --status-review-text: #92400E;
-  --status-review-bg: #FEF3C7;
-  --status-done-text: #166534;
-  --status-done-bg: #DCFCE7;
+  /* Accent: forged copper */
+  --accent: #a84426;
+  --accent-hover: #8f351b;
+  --accent-soft: #f6e7df;
+  --accent-foreground: #fff9f5;
 
-  /* Prioridade: texto / fundo */
-  --priority-low-text: #475569;
-  --priority-low-bg: #F1F5F9;
-  --priority-medium-text: #1D4ED8;
-  --priority-medium-bg: #DBEAFE;
-  --priority-high-text: #9A3412;
-  --priority-high-bg: #FFEDD5;
-  --priority-critical-text: #991B1B;
-  --priority-critical-bg: #FEE2E2;
+  /* Semantics */
+  --success: #2c6a55;
+  --success-soft: #e1efe8;
+  --success-foreground: #ffffff;
+  --warning: #7c5212;
+  --warning-soft: #f7edd8;
+  --warning-foreground: #ffffff;
+  --danger: #a32b23;
+  --danger-soft: #f8e5e2;
+  --danger-foreground: #ffffff;
+  --info: #2c5d86;
+  --info-soft: #e5eef6;
+  --info-foreground: #ffffff;
+
+  /* Focus and overlay */
+  --focus: #a84426;
+  --overlay: rgb(16 20 17 / 0.52);
+
+  /* Sidebar spine */
+  --sidebar: #1b2621;
+  --sidebar-surface: #223029;
+  --sidebar-line: #33443b;
+  --sidebar-ink: #edf0e8;
+  --sidebar-muted: #a8b5ab;
+  --sidebar-accent: #e08a66;
+
+  /* Space: 4px base */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Layers */
+  --z-sticky: 10;
+  --z-sidebar: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration: 180ms;
+  --duration-slow: 260ms;
+
+  /* Layout */
+  --sidebar-width: 16.5rem;
+  --topbar-height: 3.75rem;
+  --content-max: 92rem;
+  --prose-measure: 68ch;
 }
 
 [data-theme="dark"] {
-  /* Tokens — tema escuro (contraste >= 4.5:1 em texto normal) */
-  --bg: #0B0F19;
-  --surface: #111827;
-  --border: #1F2937;
-  --text: #E5E7EB;
-  --text-muted: #9CA3AF;
-  --primary: #818CF8;
-  --primary-hover: #A5B4FC;
-  --primary-foreground: #0B0F19;
-  --danger: #F87171;
-  --focus-ring: #818CF8;
+  --canvas: #101512;
+  --surface: #161d19;
+  --surface-raised: #1b241f;
+  --surface-muted: #1e2822;
+  --surface-sunken: #0c110e;
 
-  --background: #111827;
-  --foreground: #E5E7EB;
-  --secondary: #1E293B;
-  --secondary-foreground: #E5E7EB;
-  --muted: #1E293B;
-  --muted-foreground: #9CA3AF;
-  --accent: #1E293B;
-  --accent-foreground: #E5E7EB;
-  --popover: #111827;
-  --popover-foreground: #E5E7EB;
-  --card: #111827;
-  --card-foreground: #E5E7EB;
-  --input: #1F2937;
-  --ring: #818CF8;
+  --line: #2a352e;
+  --line-strong: #3a483f;
+  --line-subtle: #222c26;
 
-  --status-pending-text: #94A3B8;
-  --status-pending-bg: #1E293B;
-  --status-in-progress-text: #BFDBFE;
-  --status-in-progress-bg: #1E3A8A;
-  --status-review-text: #FCD34D;
-  --status-review-bg: #451A03;
-  --status-done-text: #4ADE80;
-  --status-done-bg: #14532D;
+  --ink: #e7ebe3;
+  --ink-muted: #a6b0a6;
+  --ink-subtle: #8b968c;
 
-  --priority-low-text: #94A3B8;
-  --priority-low-bg: #1E293B;
-  --priority-medium-text: #BFDBFE;
-  --priority-medium-bg: #1E3A8A;
-  --priority-high-text: #FDBA74;
-  --priority-high-bg: #431407;
-  --priority-critical-text: #FCA5A5;
-  --priority-critical-bg: #450A0A;
+  --accent: #e0815c;
+  --accent-hover: #ee9570;
+  --accent-soft: #3a241c;
+  --accent-foreground: #1b100b;
+
+  --success: #7cc4a4;
+  --success-soft: #1b3329;
+  --success-foreground: #07150f;
+  --warning: #e2b66a;
+  --warning-soft: #3a2c15;
+  --warning-foreground: #1c1406;
+  --danger: #f0948a;
+  --danger-soft: #3d1f1c;
+  --danger-foreground: #220806;
+  --info: #8fb9df;
+  --info-soft: #1b2c3a;
+  --info-foreground: #06121d;
+
+  --focus: #e0815c;
+  --overlay: rgb(3 6 4 / 0.68);
+
+  --sidebar: #0b100d;
+  --sidebar-surface: #131a16;
+  --sidebar-line: #253129;
+  --sidebar-ink: #e7ebe3;
+  --sidebar-muted: #94a096;
+  --sidebar-accent: #e0815c;
 }
 
 @theme {
-  --color-bg: var(--bg);
+  --color-canvas: var(--canvas);
   --color-surface: var(--surface);
-  --color-border: var(--border);
-  --color-text: var(--text);
-  --color-text-muted: var(--text-muted);
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-danger: var(--danger);
-  --color-focus-ring: var(--focus-ring);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
 
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-subtle: var(--line-subtle);
+
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
   --color-accent-foreground: var(--accent-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
 
-  --color-status-pending-text: var(--status-pending-text);
-  --color-status-pending-bg: var(--status-pending-bg);
-  --color-status-in-progress-text: var(--status-in-progress-text);
-  --color-status-in-progress-bg: var(--status-in-progress-bg);
-  --color-status-review-text: var(--status-review-text);
-  --color-status-review-bg: var(--status-review-bg);
-  --color-status-done-text: var(--status-done-text);
-  --color-status-done-bg: var(--status-done-bg);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-foreground: var(--info-foreground);
 
-  --color-priority-low-text: var(--priority-low-text);
-  --color-priority-low-bg: var(--priority-low-bg);
-  --color-priority-medium-text: var(--priority-medium-text);
-  --color-priority-medium-bg: var(--priority-medium-bg);
-  --color-priority-high-text: var(--priority-high-text);
-  --color-priority-high-bg: var(--priority-high-bg);
-  --color-priority-critical-text: var(--priority-critical-text);
-  --color-priority-critical-bg: var(--priority-critical-bg);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-surface: var(--sidebar-surface);
+  --color-sidebar-line: var(--sidebar-line);
+  --color-sidebar-ink: var(--sidebar-ink);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-accent: var(--sidebar-accent);
 
-  --radius: var(--radius);
-  --radius-sm: var(--radius-sm);
+  --color-focus-ring: var(--focus);
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
+  /* Compatibility aliases while old utilities are retired */
+  --color-bg: var(--canvas);
+  --color-border: var(--line);
+  --color-text: var(--ink);
+  --color-text-muted: var(--ink-muted);
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-foreground: var(--accent-foreground);
+  --color-secondary: var(--surface-muted);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-muted);
+  --color-muted-foreground: var(--ink-muted);
+  --color-input: var(--line);
+  --color-ring: var(--focus);
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
 
-html,
-body,
-#root {
-  height: 100%;
-}
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.3rem;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.55rem;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.45rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.65rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.8rem;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.15rem;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
 
-body {
-  background-color: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
-  font-size: 0.875rem;
-  line-height: 1.5;
-  overflow-x: hidden;
-}
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+  --tracking-tight: -0.03em;
+  --tracking-snug: -0.015em;
+  --tracking-wide: 0.08em;
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --shadow-xs: 0 1px 2px rgb(12 18 14 / 0.06);
+  --shadow-sm: 0 2px 6px -1px rgb(12 18 14 / 0.08),
+    0 1px 3px rgb(12 18 14 / 0.06);
+  --shadow-md: 0 10px 28px -10px rgb(12 18 14 / 0.2),
+    0 3px 8px rgb(12 18 14 / 0.08);
+  --shadow-lg: 0 28px 56px -18px rgb(12 18 14 / 0.3),
+    0 6px 16px rgb(12 18 14 / 0.1);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }

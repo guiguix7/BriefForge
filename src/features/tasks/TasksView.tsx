@@ -1,202 +1,257 @@
-import { useStore } from '@/store'
-import { ChevronRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
+import * as React from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Columns3,
+  GripVertical,
+  List,
+  ListChecks,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 import {
   DndContext,
-  closestCorners,
+  KeyboardSensor,
   PointerSensor,
+  closestCorners,
+  useDroppable,
   useSensor,
   useSensors,
+  type Announcements,
+  type DragEndEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
+  sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { cn } from '@/lib/utils'
-import * as React from 'react'
-import type { Task } from '@/store'
+import { CSS } from '@dnd-kit/utilities'
+import { useStore, type Task } from '@/store'
+import { useToast } from '@/components/ui/toast'
+import { Alert } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import {
+  Drawer,
+  DrawerBody,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
+import { SectionHeading } from '@/components/ui/section-heading'
+import { Select } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
+import {
+  TaskPriorityBadge,
+  TaskStatusBadge,
+} from '@/components/domain-badges'
+import {
+  TASK_PRIORITY,
+  TASK_STATUS,
+  pluralize,
+} from '@/lib/domain'
+import { cn, formatDate, formatDateTime } from '@/lib/utils'
 
 type TaskStatus = Task['status']
 type TaskPriority = Task['priority']
+type StatusFilter = TaskStatus | 'all'
+type PriorityFilter = TaskPriority | 'all'
+type ViewMode = 'list' | 'board'
 
-const STATUS_CONFIG: Record<
-  TaskStatus,
-  { label: string; variant: string }
-> = {
-  pendente: { label: 'Pendente', variant: 'default' },
-  andamento: { label: 'Em andamento', variant: 'default' },
-  revisao: { label: 'Revisão', variant: 'warning' },
-  concluido: { label: 'Concluído', variant: 'success' },
+const STATUS_ORDER: TaskStatus[] = ['pendente', 'andamento', 'revisao', 'concluido']
+
+const priorityOrder: Record<TaskPriority, number> = {
+  critica: 0,
+  alta: 1,
+  media: 2,
+  baixa: 3,
 }
 
-const PRIORITY_CONFIG: Record<
-  TaskPriority,
-  { label: string; variant: string }
-> = {
-  baixa: { label: 'Baixa', variant: 'secondary' },
-  media: { label: 'Média', variant: 'default' },
-  alta: { label: 'Alta', variant: 'warning' },
-  critica: { label: 'Crítica', variant: 'destructive' },
-}
-
-const STATUS_ORDER: Record<TaskStatus, number> = {
-  pendente: 0,
-  andamento: 1,
-  revisao: 2,
-  concluido: 3,
-}
-
-const COLUMNS: { id: TaskStatus; label: string }[] = [
-  { id: 'pendente', label: 'Pendente' },
-  { id: 'andamento', label: 'Em andamento' },
-  { id: 'revisao', label: 'Revisão' },
-  { id: 'concluido', label: 'Concluído' },
-]
-
-function TaskItem({
+function TaskCard({
   task,
-  onStatusChange,
-  onOpenDetail,
+  onOpen,
 }: {
   task: Task
-  onStatusChange: (id: string, status: TaskStatus) => void
-  onOpenDetail: (id: string) => void
+  onOpen: (id: string) => void
 }) {
   const {
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
-  } = useSortable({ id: task.id })
-  const status = STATUS_CONFIG[task.status]
-  const priority = PRIORITY_CONFIG[task.priority]
-  const style = {
-    transform: transform
-      ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-      : undefined,
-    transition,
-  }
+    isDragging,
+  } = useSortable({ id: task.id, data: { status: task.status } })
 
   return (
-    <div
+    <article
       ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
       className={cn(
-        'rounded-lg border border-border bg-surface p-3 mb-2 cursor-pointer shadow-sm transition-all',
-        'group'
+        'rounded-md border border-line bg-surface px-3 py-2.5 shadow-xs',
+        isDragging && 'z-20 opacity-60 shadow-md'
       )}
-      onClick={() => onOpenDetail(task.id)}
     >
-      <div className="flex items-center gap-2">
-        <div className="h-2 w-2 rounded-full" />
-        <span className="text-xs font-medium text-muted">{task.title}</span>
-      </div>
-      <div className="flex items-center gap-2 mt-2">
-        <Badge variant={status.variant as any} className="text-xs">
-          {status.label}
-        </Badge>
-        <Badge variant={priority.variant as any} className="text-xs">
-          {priority.label}
-        </Badge>
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 text-[10px] text-muted">
-          <span className="w-2 h-2 rounded-full" />
-          <span>Origem: sugestão</span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="p-1 text-muted"
-          onClick={(e) => {
-            e.stopPropagation()
-            onStatusChange(task.id, 'concluido')
-          }}
-          title="Marcar como concluído"
+      <div className="flex items-start gap-2">
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={`Mover ${task.title}`}
+          className="-ml-1 mt-0.5 grid h-6 w-6 shrink-0 cursor-grab place-items-center rounded-sm text-ink-subtle hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring active:cursor-grabbing"
         >
-          <ChevronRight className="h-3 w-3" />
-        </Button>
+          <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => onOpen(task.id)}
+            className="block w-full text-left text-sm font-medium leading-snug text-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+          >
+            {task.title}
+          </button>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <TaskPriorityBadge priority={task.priority} />
+            <span className="text-[0.6875rem] text-ink-subtle">
+              {task.suggestionId ? 'Da revisão' : 'Manual'}
+            </span>
+          </div>
+        </div>
       </div>
-    </div>
+    </article>
   )
 }
 
 function BoardColumn({
-  label,
+  status,
   tasks,
-  onStatusChange,
-  onOpenDetail,
+  onOpen,
 }: {
-  label: string
+  status: TaskStatus
   tasks: Task[]
-  onStatusChange: (id: string, status: TaskStatus) => void
-  onOpenDetail: (id: string) => void
+  onOpen: (id: string) => void
 }) {
+  const config = TASK_STATUS[status]
+  const { setNodeRef, isOver } = useDroppable({ id: `column-${status}` })
   const sorted = [...tasks].sort(
-    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+    (a, b) =>
+      priorityOrder[a.priority] - priorityOrder[b.priority] ||
+      a.title.localeCompare(b.title)
   )
 
   return (
-    <div className="flex flex-col min-w-[240px]">
-      <div className="flex items-center gap-2 px-2 py-2 border-b border-border bg-accent/50">
-        <span className="text-xs font-semibold text-muted uppercase tracking-tighter">
-          {label}
+    <section
+      aria-labelledby={`board-column-${status}`}
+      className="flex min-w-[15rem] flex-1 flex-col"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-line pb-2">
+        <h3
+          id={`board-column-${status}`}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted"
+        >
+          <span
+            className={cn(
+              'h-1.5 w-1.5 rounded-full',
+              config.tone === 'success' && 'bg-success',
+              config.tone === 'warning' && 'bg-warning',
+              config.tone === 'info' && 'bg-info',
+              config.tone === 'neutral' && 'bg-ink-subtle',
+              config.tone === 'danger' && 'bg-danger',
+              config.tone === 'accent' && 'bg-accent'
+            )}
+            aria-hidden="true"
+          />
+          {config.shortLabel}
+        </h3>
+        <span className="font-mono text-xs tabular text-ink-muted">
+          {sorted.length}
         </span>
-        <Badge variant="secondary" className="ml-auto text-xs">
-          {tasks.length}
-        </Badge>
       </div>
-      <div className="p-2 min-h-[100px]">
+
+      <div
+        ref={setNodeRef}
+        className={cn(
+          'mt-2 min-h-[13rem] rounded-md border border-dashed p-2 transition-colors',
+          isOver
+            ? 'border-accent/50 bg-accent-soft/40'
+            : 'border-line-subtle bg-surface-muted/20'
+        )}
+      >
         <SortableContext
-          items={sorted.map((t) => t.id)}
+          items={sorted.map((task) => task.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="space-y-2">
             {sorted.map((task) => (
-              <TaskItem
-                key={task.id}
-                task={task}
-                onStatusChange={onStatusChange}
-                onOpenDetail={onOpenDetail}
-              />
+              <TaskCard key={task.id} task={task} onOpen={onOpen} />
             ))}
           </div>
         </SortableContext>
+        {sorted.length === 0 && (
+          <p className="px-2 py-6 text-center text-xs leading-relaxed text-ink-subtle">
+            {isOver
+              ? 'Solte a tarefa aqui.'
+              : 'Nenhuma tarefa neste estágio.'}
+          </p>
+        )}
       </div>
-    </div>
+    </section>
   )
 }
 
-function TasksBoard({
-  tasks,
-  onStatusChange,
-  onOpenDetail,
-}: {
-  tasks: Task[]
-  onStatusChange: (id: string, status: TaskStatus) => void
-  onOpenDetail: (id: string) => void
-}) {
-  const sensors = useSensors(useSensor(PointerSensor))
+export function TasksView({ projectId }: { projectId: string }) {
+  const { tasks, updateTask, deleteTask, addHistory } = useStore()
+  const { toast } = useToast()
 
-  const handleDragEnd = (event: any) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+  const [view, setView] = React.useState<ViewMode>('list')
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>('all')
+  const [priorityFilter, setPriorityFilter] =
+    React.useState<PriorityFilter>('all')
+  const [search, setSearch] = React.useState('')
+  const [openDetailId, setOpenDetailId] = React.useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<Task | null>(null)
 
-    const activeTask = tasks.find((t) => t.id === String(active.id))
-    if (!activeTask) return
+  const projectTasks = tasks.filter((task) => task.projectId === projectId)
+  const [announcement, setAnnouncement] = React.useState('')
 
-    const overTask = tasks.find((t) => t.id === String(over.id))
-    if (!overTask) return
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
-    onStatusChange(String(active.id), overTask.status)
-  }
+  const filtered = projectTasks.filter((task) => {
+    if (statusFilter !== 'all' && task.status !== statusFilter) return false
+    if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false
+    const term = search.trim().toLowerCase()
+    if (!term) return true
+    return (
+      task.title.toLowerCase().includes(term) ||
+      task.description.toLowerCase().includes(term)
+    )
+  })
+
+  const sorted = [...filtered].sort(
+    (a, b) =>
+      TASK_STATUS[a.status].order - TASK_STATUS[b.status].order ||
+      priorityOrder[a.priority] - priorityOrder[b.priority] ||
+      a.title.localeCompare(b.title)
+  )
+
+  const detail = projectTasks.find((task) => task.id === openDetailId) ?? null
+  const open = projectTasks.filter((task) => task.status !== 'concluido').length
+  const done = projectTasks.length - open
+  const hasFilters =
+    statusFilter !== 'all' || priorityFilter !== 'all' || search.trim() !== ''
 
   const tasksByStatus: Record<TaskStatus, Task[]> = {
     pendente: [],
@@ -204,265 +259,634 @@ function TasksBoard({
     revisao: [],
     concluido: [],
   }
+  filtered.forEach((task) => tasksByStatus[task.status].push(task))
 
-  tasks.forEach((t) => tasksByStatus[t.status].push(t))
-
-  return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-2">
-          {COLUMNS.map((col) => (
-            <BoardColumn
-              key={col.id}
-              label={col.label}
-              tasks={tasksByStatus[col.id]}
-              onStatusChange={onStatusChange}
-              onOpenDetail={onOpenDetail}
-            />
-          ))}
-        </div>
-      </div>
-    </DndContext>
-  )
-}
-
-function TasksList({
-  tasks,
-  onOpenDetail,
-}: {
-  tasks: Task[]
-  onOpenDetail: (id: string) => void
-}) {
-  const PRIORITY_ORDER: Record<TaskPriority, number> = {
-    baixa: 0,
-    media: 1,
-    alta: 2,
-    critica: 3,
-  }
-
-  const sorted = [...tasks].sort(
-    (a, b) =>
-      STATUS_ORDER[a.status] - STATUS_ORDER[b.status] ||
-      PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority]
-  )
-
-  return (
-    <div className="divide-y divide-border/50">
-      {sorted.map((task) => (
-        <div key={task.id} className="p-3 hover:bg-accent/30 transition-colors">
-          <div className="flex items-center justify-between gap-2 mb-1">
-            <h4 className="font-semibold text-sm">{task.title}</h4>
-            <Badge variant={STATUS_CONFIG[task.status].variant as any}>
-              {STATUS_CONFIG[task.status].label}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant={PRIORITY_CONFIG[task.priority].variant as any}>
-              {PRIORITY_CONFIG[task.priority].label}
-            </Badge>
-            <span className="text-[10px] text-muted">Origem: sugestão</span>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted">
-              {new Date(task.createdAt).toLocaleDateString('pt-BR')}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="p-1"
-              onClick={(e) => {
-                e.stopPropagation()
-                onOpenDetail(task.id)
-              }}
-            >
-              Ver detalhes
-            </Button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-export function TasksView({ projectId }: { projectId: string }) {
-  const { tasks, updateTask, addHistory } = useStore()
-  const projTasks = tasks.filter((t) => t.projectId === projectId)
-
-  const [view, setView] = React.useState<'list' | 'board'>('board')
-  const [statusFilter, setStatusFilter] = React.useState<
-    TaskStatus | 'all'
-  >('all')
-  const [priorityFilter, setPriorityFilter] = React.useState<
-    TaskPriority | 'all'
-  >('all')
-  const [search, setSearch] = React.useState('')
-  const [openDetailId, setOpenDetailId] = React.useState<string | null>(null)
-
-  const filtered = projTasks.filter((t) => {
-    if (statusFilter !== 'all' && t.status !== statusFilter) return false
-    if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase()))
-      return false
-    return true
-  })
-
-  const handleStatusChange = (id: string, status: TaskStatus) => {
-    updateTask(id, { status })
+  const recordStatusChange = (task: Task, status: TaskStatus) => {
+    if (task.status === status) return
+    updateTask(task.id, { status })
     addHistory(projectId, {
       type: 'alteracao',
       title: 'Status da tarefa alterado',
-      description: `Tarefa "${id}" movida para ${status}.`,
+      description: `"${task.title}" passou de ${TASK_STATUS[
+        task.status
+      ].label.toLowerCase()} para ${TASK_STATUS[status].label.toLowerCase()}.`,
     })
   }
 
-  const detail = projTasks.find((t) => t.id === openDetailId)
+  const handleStatusChange = (id: string, status: TaskStatus) => {
+    const task = projectTasks.find((item) => item.id === id)
+    if (!task) return
+    recordStatusChange(task, status)
+  }
+
+  const handlePriorityChange = (id: string, priority: TaskPriority) => {
+    const task = projectTasks.find((item) => item.id === id)
+    if (!task || task.priority === priority) return
+    updateTask(id, { priority })
+    addHistory(projectId, {
+      type: 'alteracao',
+      title: 'Prioridade da tarefa alterada',
+      description: `"${task.title}" passou de ${TASK_PRIORITY[
+        task.priority
+      ].label} para ${TASK_PRIORITY[priority].label}.`,
+    })
+    toast({
+      title: 'Prioridade atualizada',
+      description: `${task.title}: ${TASK_PRIORITY[priority].label}.`,
+    })
+  }
+
+  const handleDelete = () => {
+    if (!deleteTarget) return
+    const title = deleteTarget.title
+    deleteTask(deleteTarget.id)
+    addHistory(projectId, {
+      type: 'alteracao',
+      title: 'Tarefa excluída',
+      description: `"${title}" foi removida do projeto.`,
+    })
+    toast({
+      title: 'Tarefa excluída',
+      description: `"${title}" foi removida.`,
+      variant: 'success',
+    })
+    setDeleteTarget(null)
+    setOpenDetailId(null)
+  }
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over) return
+    const task = projectTasks.find((item) => item.id === String(active.id))
+    if (!task) return
+
+    const overId = String(over.id)
+    const nextStatus: TaskStatus | undefined = overId.startsWith('column-')
+      ? (overId.replace('column-', '') as TaskStatus)
+      : projectTasks.find((item) => item.id === overId)?.status
+
+    if (!nextStatus || nextStatus === task.status) return
+    recordStatusChange(task, nextStatus)
+    setAnnouncement(
+      `"${task.title}" movida para ${TASK_STATUS[nextStatus].label}.`
+    )
+  }
+
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => {
+      const task = projectTasks.find((item) => item.id === String(active.id))
+      return task
+        ? `Tarefa "${task.title}" selecionada. Use as setas para escolher a coluna e pressione espaço para soltar.`
+        : 'Tarefa selecionada.'
+    },
+    onDragOver: ({ active, over }) => {
+      if (!over) return undefined
+      const task = projectTasks.find((item) => item.id === String(active.id))
+      const overId = String(over.id)
+      const target = overId.startsWith('column-')
+        ? TASK_STATUS[overId.replace('column-', '') as TaskStatus]?.label
+        : projectTasks.find((item) => item.id === overId)?.title
+      return task && target
+        ? `"${task.title}" sobre ${target}.`
+        : undefined
+    },
+    onDragEnd: ({ active, over }) => {
+      if (!over) return 'Movimentação cancelada.'
+      const task = projectTasks.find((item) => item.id === String(active.id))
+      return task
+        ? `"${task.title}" solta.`
+        : 'Tarefa solta.'
+    },
+    onDragCancel: () => 'Movimentação cancelada.',
+  }
+
+  const clearFilters = () => {
+    setStatusFilter('all')
+    setPriorityFilter('all')
+    setSearch('')
+  }
+
+  if (projectTasks.length === 0) {
+    return (
+      <div className="space-y-6">
+        <SectionHeading
+          title="Tarefas"
+          description="Execução do escopo aprovado, estágio por estágio."
+        />
+        <EmptyState
+          icon={<ListChecks className="h-5 w-5" />}
+          title="Nenhuma tarefa neste projeto"
+          description="As tarefas nascem de propostas aprovadas na revisão. Aprove itens de requisito, funcionalidade ou entregável para começar."
+          action={
+            <Button asChild>
+              <Link to={`/projetos/${projectId}/revisao`}>
+                Abrir revisão
+              </Link>
+            </Button>
+          }
+          className="rounded-lg border border-line bg-surface"
+        />
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Tarefas</h1>
-          <p className="text-sm text-muted">
-            Gerencie as tarefas do projeto
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={view === 'list' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setView('list')}
-          >
-            Lista
-          </Button>
-          <Button
-            variant={view === 'board' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setView('board')}
-          >
-            Quadro
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-4 items-end">
-        <div className="relative w-64">
-          <input
-            placeholder="Buscar tarefas..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-full pl-8 pr-3 rounded-md border border-border bg-surface text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={(e) =>
-            setStatusFilter(e.target.value as TaskStatus | 'all')
-          }
-          className="h-9 rounded-md border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <SectionHeading
+          title="Tarefas"
+          description="Execução do escopo aprovado. Mude o status na lista ou arraste no quadro."
+          className="mb-0 flex-1"
+        />
+        <div
+          role="group"
+          aria-label="Modo de visualização"
+          className="inline-flex shrink-0 rounded-md border border-line bg-surface p-0.5"
         >
-          <option value="all">Todos os status</option>
-          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-            <option key={key} value={key as TaskStatus}>
-              {cfg.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={priorityFilter}
-          onChange={(e) =>
-            setPriorityFilter(e.target.value as TaskPriority | 'all')
-          }
-          className="h-9 rounded-md border border-border bg-surface px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
-        >
-          <option value="all">Todas as prioridades</option>
-          {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => (
-            <option key={key} value={key as TaskPriority}>
-              {cfg.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          {view === 'board' ? (
-            <TasksBoard
-              tasks={filtered}
-              onStatusChange={handleStatusChange}
-              onOpenDetail={setOpenDetailId}
-            />
-          ) : (
-            <TasksList
-              tasks={filtered}
-              onOpenDetail={setOpenDetailId}
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Detalhe da tarefa em painel lateral */}
-      {detail && (
-        <>
-          <div
-            className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm"
-            onClick={() => setOpenDetailId(null)}
-          />
-          <div className="fixed top-0 right-0 z-50 h-full w-full max-w-[420px] bg-surface border-l border-border shadow-xl flex flex-col">
-            <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border bg-surface">
-              <div>
-                <h2 className="text-lg font-semibold">{detail.title}</h2>
-                <p className="text-sm text-muted">{detail.description}</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setOpenDetailId(null)}
+          {[
+            { value: 'list' as const, label: 'Lista', icon: List },
+            { value: 'board' as const, label: 'Quadro', icon: Columns3 },
+          ].map((mode) => {
+            const Icon = mode.icon
+            return (
+              <button
+                key={mode.value}
+                type="button"
+                aria-pressed={view === mode.value}
+                onClick={() => setView(mode.value)}
+                className={cn(
+                  'inline-flex h-8 items-center gap-1.5 rounded-sm px-3 text-sm font-medium transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring',
+                  view === mode.value
+                    ? 'bg-surface-muted text-ink shadow-xs'
+                    : 'text-ink-muted hover:text-ink'
+                )}
               >
-                Fechar
-              </Button>
-            </div>
-            <div className="p-6 space-y-4 flex-1 overflow-y-auto">
-              <div className="space-y-2">
-                <label className="text-xs text-muted block">Status</label>
-                <Badge variant={STATUS_CONFIG[detail.status].variant as any}>
-                  {STATUS_CONFIG[detail.status].label}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-muted block">Prioridade</label>
-                <Badge variant={PRIORITY_CONFIG[detail.priority].variant as any}>
-                  {PRIORITY_CONFIG[detail.priority].label}
-                </Badge>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs text-muted block">Origem</label>
-                <span className="text-xs font-mono">
-                  {detail.suggestionId ? 'Sugestão da IA' : 'Criada manualmente'}
-                </span>
-              </div>
-              <Separator />
-              <div className="space-y-2">
-                <label className="text-xs text-muted block">Criado em</label>
-                <span className="text-sm">
-                  {new Date(detail.createdAt).toLocaleDateString('pt-BR')}
-                </span>
-              </div>
-              {detail.completedAt && (
-                <div className="space-y-2">
-                  <label className="text-xs text-muted block">Concluído em</label>
-                  <span className="text-sm">
-                    {new Date(detail.completedAt).toLocaleDateString('pt-BR')}
-                  </span>
-                </div>
-              )}
-            </div>
+                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                {mode.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-muted">
+        <span>{pluralize(projectTasks.length, 'tarefa', 'tarefas')}</span>
+        <span aria-hidden="true">·</span>
+        <span>{open} em aberto</span>
+        <span aria-hidden="true">·</span>
+        <span>{done} concluídas</span>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-xs">
+          <label htmlFor="task-search" className="sr-only">
+            Buscar tarefas por título ou descrição
+          </label>
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle"
+            aria-hidden="true"
+          />
+          <Input
+            id="task-search"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar tarefa..."
+            className="pl-9 pr-9"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-sm text-ink-muted hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+              aria-label="Limpar busca"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+
+        <div className="w-full sm:w-44">
+          <label htmlFor="task-status-filter" className="sr-only">
+            Filtrar por status
+          </label>
+          <Select
+            id="task-status-filter"
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as StatusFilter)
+            }
+          >
+            <option value="all">Todos os status</option>
+            {STATUS_ORDER.map((status) => (
+              <option key={status} value={status}>
+                {TASK_STATUS[status].label}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="w-full sm:w-44">
+          <label htmlFor="task-priority-filter" className="sr-only">
+            Filtrar por prioridade
+          </label>
+          <Select
+            id="task-priority-filter"
+            value={priorityFilter}
+            onChange={(event) =>
+              setPriorityFilter(event.target.value as PriorityFilter)
+            }
+          >
+            <option value="all">Todas as prioridades</option>
+            {Object.entries(TASK_PRIORITY).map(([value, config]) => (
+              <option key={value} value={value}>
+                {config.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        {hasFilters && (
+          <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>
+            Limpar filtros
+          </Button>
+        )}
+      </div>
+
+      <p className="sr-only" aria-live="polite">
+        {filtered.length} {filtered.length === 1 ? 'tarefa exibida' : 'tarefas exibidas'}.
+      </p>
+      <p className="sr-only" aria-live="polite">
+        {announcement}
+      </p>
+
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={<Search className="h-5 w-5" />}
+          title="Nenhuma tarefa neste filtro"
+          description="Ajuste o status, a prioridade ou o termo de busca para ver outras tarefas."
+          action={
+            <Button variant="secondary" onClick={clearFilters}>
+              Limpar filtros
+            </Button>
+          }
+          className="rounded-lg border border-line bg-surface"
+        />
+      ) : view === 'list' ? (
+        <>
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface md:block">
+            <table className="w-full min-w-[52rem] text-left text-sm">
+              <caption className="sr-only">
+                Tarefas com status, prioridade, origem, datas e ação de detalhe
+              </caption>
+              <thead className="border-b border-line bg-surface-muted/60">
+                <tr className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
+                  <th scope="col" className="px-4 py-2.5">Tarefa</th>
+                  <th scope="col" className="px-4 py-2.5">Status</th>
+                  <th scope="col" className="px-4 py-2.5">Prioridade</th>
+                  <th scope="col" className="px-4 py-2.5">Origem</th>
+                  <th scope="col" className="px-4 py-2.5">Criada</th>
+                  <th scope="col" className="px-4 py-2.5">Concluída</th>
+                  <th scope="col" className="px-4 py-2.5 text-right">
+                    Detalhe
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {sorted.map((task) => (
+                  <tr
+                    key={task.id}
+                    className="transition-colors hover:bg-surface-muted/40"
+                  >
+                    <th scope="row" className="px-4 py-3 font-normal">
+                      <button
+                        type="button"
+                        onClick={() => setOpenDetailId(task.id)}
+                        className="block max-w-[22rem] text-left text-sm font-medium text-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                      >
+                        {task.title}
+                      </button>
+                      <span className="mt-0.5 block max-w-[24rem] truncate text-xs text-ink-muted">
+                        {task.description}
+                      </span>
+                    </th>
+                    <td className="px-4 py-3">
+                      <label htmlFor={`task-status-${task.id}`} className="sr-only">
+                        Status de {task.title}
+                      </label>
+                      <Select
+                        id={`task-status-${task.id}`}
+                        value={task.status}
+                        onChange={(event) =>
+                          handleStatusChange(
+                            task.id,
+                            event.target.value as TaskStatus
+                          )
+                        }
+                        className="h-7 w-36 py-0 text-xs"
+                      >
+                        {STATUS_ORDER.map((status) => (
+                          <option key={status} value={status}>
+                            {TASK_STATUS[status].label}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <TaskPriorityBadge priority={task.priority} />
+                    </td>
+                    <td className="px-4 py-3 text-xs text-ink-muted">
+                      {task.suggestionId ? (
+                        <Link
+                          to={`/projetos/${projectId}/revisao`}
+                          className="underline-offset-4 hover:text-ink hover:underline"
+                        >
+                          Revisão
+                        </Link>
+                      ) : (
+                        'Manual'
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-ink-muted">
+                      <time dateTime={task.createdAt}>
+                        {formatDate(task.createdAt)}
+                      </time>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-ink-muted">
+                      {task.completedAt ? (
+                        <time dateTime={task.completedAt}>
+                          {formatDate(task.completedAt)}
+                        </time>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setOpenDetailId(task.id)}
+                      >
+                        Abrir
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+
+          <ul className="divide-y divide-line rounded-lg border border-line bg-surface md:hidden">
+            {sorted.map((task) => (
+              <li key={task.id} className="space-y-2.5 px-4 py-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setOpenDetailId(task.id)}
+                    className="min-w-0 text-left text-sm font-medium text-ink underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+                  >
+                    {task.title}
+                  </button>
+                  <TaskPriorityBadge priority={task.priority} />
+                </div>
+                <p className="line-clamp-2 text-xs leading-relaxed text-ink-muted">
+                  {task.description}
+                </p>
+                <div className="flex items-center gap-2">
+                  <label htmlFor={`task-mobile-status-${task.id}`} className="sr-only">
+                    Status de {task.title}
+                  </label>
+                  <Select
+                    id={`task-mobile-status-${task.id}`}
+                    value={task.status}
+                    onChange={(event) =>
+                      handleStatusChange(
+                        task.id,
+                        event.target.value as TaskStatus
+                      )
+                    }
+                    className="h-8 flex-1 text-xs"
+                  >
+                    {STATUS_ORDER.map((status) => (
+                      <option key={status} value={status}>
+                        {TASK_STATUS[status].label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setOpenDetailId(task.id)}
+                  >
+                    Detalhes
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs leading-relaxed text-ink-muted">
+            Arraste pelo ícone de alça. Com teclado: foque a alça, use as setas
+            para escolher a coluna e espaço para soltar.
+          </p>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragEnd={handleDragEnd}
+            accessibility={{
+              announcements,
+              screenReaderInstructions: {
+                draggable:
+                  'Para mover uma tarefa, foque a alça de arraste e pressione espaço. Use as setas para escolher a coluna e espaço para soltar. Escape cancela.',
+              },
+            }}
+          >
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {STATUS_ORDER.map((status) => (
+                <BoardColumn
+                  key={status}
+                  status={status}
+                  tasks={tasksByStatus[status]}
+                  onOpen={setOpenDetailId}
+                />
+              ))}
+            </div>
+          </DndContext>
+        </div>
       )}
+
+      <Drawer
+        open={Boolean(detail)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setOpenDetailId(null)
+        }}
+      >
+        <DrawerContent>
+          {detail && (
+            <>
+              <DrawerHeader>
+                <DrawerTitle>{detail.title}</DrawerTitle>
+                <DrawerDescription>{detail.description}</DrawerDescription>
+              </DrawerHeader>
+
+              <DrawerBody className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="detail-status"
+                      className="text-xs font-medium text-ink"
+                    >
+                      Status
+                    </label>
+                    <Select
+                      id="detail-status"
+                      value={detail.status}
+                      onChange={(event) =>
+                        handleStatusChange(
+                          detail.id,
+                          event.target.value as TaskStatus
+                        )
+                      }
+                    >
+                      {STATUS_ORDER.map((status) => (
+                        <option key={status} value={status}>
+                          {TASK_STATUS[status].label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="detail-priority"
+                      className="text-xs font-medium text-ink"
+                    >
+                      Prioridade
+                    </label>
+                    <Select
+                      id="detail-priority"
+                      value={detail.priority}
+                      onChange={(event) =>
+                        handlePriorityChange(
+                          detail.id,
+                          event.target.value as TaskPriority
+                        )
+                      }
+                    >
+                      {Object.entries(TASK_PRIORITY).map(([value, config]) => (
+                        <option key={value} value={value}>
+                          {config.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <TaskStatusBadge status={detail.status} />
+                  <TaskPriorityBadge priority={detail.priority} />
+                </div>
+
+                <dl className="divide-y divide-line-subtle border-y border-line text-sm">
+                  <div className="flex items-center justify-between gap-4 py-2.5">
+                    <dt className="text-ink-muted">Origem</dt>
+                    <dd className="text-right text-ink">
+                      {detail.suggestionId ? (
+                        <Link
+                          to={`/projetos/${projectId}/revisao`}
+                          className="underline-offset-4 hover:underline"
+                        >
+                          Proposta aprovada
+                        </Link>
+                      ) : (
+                        'Criada manualmente'
+                      )}
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-2.5">
+                    <dt className="text-ink-muted">Criada em</dt>
+                    <dd className="text-right text-ink">
+                      <time dateTime={detail.createdAt}>
+                        {formatDateTime(detail.createdAt)}
+                      </time>
+                    </dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 py-2.5">
+                    <dt className="text-ink-muted">Concluída em</dt>
+                    <dd className="text-right text-ink">
+                      {detail.completedAt ? (
+                        <time dateTime={detail.completedAt}>
+                          {formatDateTime(detail.completedAt)}
+                        </time>
+                      ) : (
+                        'Ainda não'
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+
+                <Alert tone="neutral" title="Rastreabilidade">
+                  Alterações de status e prioridade são registradas no histórico
+                  do projeto. A tarefa mantém o vínculo com a proposta que a
+                  originou.
+                </Alert>
+
+                <Separator />
+
+                <div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setDeleteTarget(detail)}
+                    className="text-danger hover:bg-danger-soft hover:text-danger"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    Excluir tarefa
+                  </Button>
+                  <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+                    A proposta original continua no dossiê. A exclusão não pode
+                    ser desfeita.
+                  </p>
+                </div>
+              </DrawerBody>
+
+              <DrawerFooter>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setOpenDetailId(null)}
+                >
+                  Fechar
+                </Button>
+              </DrawerFooter>
+            </>
+          )}
+        </DrawerContent>
+      </Drawer>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setDeleteTarget(null)
+        }}
+        title="Excluir tarefa"
+        description={
+          deleteTarget ? (
+            <>
+              Excluir <strong className="text-ink">{deleteTarget.title}</strong>{' '}
+              remove a tarefa do projeto. A proposta original e o histórico de
+              decisões permanecem no dossiê.
+            </>
+          ) : null
+        }
+        confirmLabel="Excluir tarefa"
+        onConfirm={handleDelete}
+        destructive
+      />
     </div>
   )
 }

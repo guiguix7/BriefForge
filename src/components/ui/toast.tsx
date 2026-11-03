@@ -1,12 +1,15 @@
 import * as React from 'react'
-import { X } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+export type ToastVariant = 'default' | 'success' | 'warning' | 'destructive'
 
 export type ToastProps = {
   id: string
   title?: string
   description?: string
   action?: React.ReactNode
-  variant?: 'default' | 'destructive'
+  variant?: ToastVariant
 }
 
 type ToastActionType = {
@@ -14,8 +17,8 @@ type ToastActionType = {
   dismiss: (id?: string) => void
 }
 
-const TOAST_LIMIT = 5
-const TOAST_REMOVE_DELAY = 4000
+const TOAST_LIMIT = 4
+const TOAST_REMOVE_DELAY = 5000
 
 const createToast = (props: Omit<ToastProps, 'id'>): ToastProps => ({
   id: crypto.randomUUID(),
@@ -32,57 +35,56 @@ export function useToast(): ToastActionType {
   return context
 }
 
+function ToastIcon({ variant }: { variant: ToastVariant }) {
+  if (variant === 'success') {
+    return <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
+  }
+  if (variant === 'destructive' || variant === 'warning') {
+    return (
+      <AlertTriangle
+        className={cn(
+          'h-4 w-4',
+          variant === 'destructive' ? 'text-danger' : 'text-warning'
+        )}
+        aria-hidden="true"
+      />
+    )
+  }
+  return <Info className="h-4 w-4 text-info" aria-hidden="true" />
+}
+
 export function ToastProvider({
   children,
 }: {
   children: React.ReactNode
 }): React.ReactElement | null {
-  const [state, setState] = React.useState<{ toasts: ToastProps[] }>({
-    toasts: [],
-  })
+  const [toasts, setToasts] = React.useState<ToastProps[]>([])
 
-  const toast = React.useCallback(
-    (props: Omit<ToastProps, 'id'>) => {
-      const newToast = createToast(props)
-      setState((prev) => ({
-        toasts: [...prev.toasts, newToast].slice(-TOAST_LIMIT),
-      }))
-      return newToast.id
-    },
-    []
-  )
+  const toast = React.useCallback((props: Omit<ToastProps, 'id'>) => {
+    const newToast = createToast(props)
+    setToasts((previous) => [...previous, newToast].slice(-TOAST_LIMIT))
+    return newToast.id
+  }, [])
 
   const dismiss = React.useCallback((id?: string) => {
-    setState((prev) => ({
-      toasts: id ? prev.toasts.filter((t) => t.id !== id) : [],
-    }))
+    setToasts((previous) =>
+      id ? previous.filter((item) => item.id !== id) : []
+    )
   }, [])
 
   return (
     <ToastContext.Provider value={{ toast, dismiss }}>
       {children}
-      <ToastViewport toasts={state.toasts} dismiss={dismiss} />
+      <div
+        className="pointer-events-none fixed bottom-4 right-4 z-[var(--z-toast)] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2 sm:bottom-5 sm:right-5"
+        aria-live="polite"
+        aria-atomic="false"
+      >
+        {toasts.map((item) => (
+          <Toast key={item.id} {...item} dismiss={dismiss} />
+        ))}
+      </div>
     </ToastContext.Provider>
-  )
-}
-
-function ToastViewport({
-  toasts,
-  dismiss,
-}: {
-  toasts: ToastProps[]
-  dismiss: (id?: string) => void
-}): React.ReactElement | null {
-  return (
-    <div
-      className="fixed top-24 right-2 z-50 flex flex-col gap-2 sm:bottom-24 sm:right-2 sm:top-auto"
-      aria-live="polite"
-      aria-atomic="true"
-    >
-      {toasts.map((t) => (
-        <Toast key={t.id} {...t} dismiss={dismiss} />
-      ))}
-    </div>
   )
 }
 
@@ -91,9 +93,9 @@ function Toast({
   title,
   description,
   action,
-  variant,
+  variant = 'default',
   dismiss,
-}: ToastProps & { dismiss: (id: string) => void }): React.ReactElement | null {
+}: ToastProps & { dismiss: (id: string) => void }): React.ReactElement {
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   React.useEffect(() => {
@@ -103,40 +105,40 @@ function Toast({
     }
   }, [id, dismiss])
 
-  const classes = React.useMemo(
-    () =>
-      `flex items-center gap-3 w-full max-w-xs rounded-lg border border-border bg-surface p-4 shadow-lg animate-in fade-in slide-in-from-right-2 duration-300 ${
-        variant === 'destructive' ? 'border-danger' : ''
-      }`,
-    [variant]
-  )
-
   return (
-    <div className={classes}>
-      <div className="h-4 w-4 shrink-0" />
-      <div className="flex flex-col gap-1">
-        {title && <h4 className="text-sm font-semibold">{title}</h4>}
+    <div
+      role={variant === 'destructive' ? 'alert' : 'status'}
+      className={cn(
+        'toast-item pointer-events-auto flex items-start gap-3 rounded-lg border bg-surface p-3.5 shadow-md',
+        variant === 'destructive' && 'border-danger/40',
+        variant === 'success' && 'border-success/30',
+        variant === 'warning' && 'border-warning/30',
+        variant === 'default' && 'border-line'
+      )}
+    >
+      <span className="mt-0.5 shrink-0">
+        <ToastIcon variant={variant} />
+      </span>
+      <div className="min-w-0 flex-1">
+        {title && (
+          <p className="text-sm font-semibold leading-snug text-ink">{title}</p>
+        )}
         {description && (
-          <p className="text-sm text-muted">{description}</p>
+          <p className="mt-0.5 text-sm leading-relaxed text-ink-muted">
+            {description}
+          </p>
+        )}
+        {action && (
+          <div className="mt-2 text-sm font-medium text-accent">{action}</div>
         )}
       </div>
-      {action && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            dismiss(id)
-          }}
-          className="text-xs font-medium underline text-primary"
-        >
-          {action}
-        </button>
-      )}
       <button
+        type="button"
         onClick={() => dismiss(id)}
-        className="ml-auto shrink-0 opacity-70 hover:opacity-100 rounded p-1"
-        aria-label="Descartar notificação"
+        className="-mr-1 -mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring"
+        aria-label="Fechar notificação"
       >
-        <X className="h-4 w-4" />
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </div>
   )

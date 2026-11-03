@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
+import { inputBase } from '@/components/ui/input'
 
 const Textarea = React.forwardRef<
   HTMLTextAreaElement,
@@ -7,10 +8,7 @@ const Textarea = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <textarea
     ref={ref}
-    className={cn(
-      'flex min-h-[80px] w-full rounded-md border border-border bg-surface px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-      className
-    )}
+    className={cn(inputBase, 'min-h-24 resize-y py-2 leading-relaxed', className)}
     {...props}
   />
 ))

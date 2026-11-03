@@ -1,160 +1,230 @@
+import type { HistoryEvent, Project, Suggestion, Task } from '@/store'
+import {
+  HISTORY_TYPE,
+  PROJECT_STATUS,
+  SUGGESTION_TYPE,
+  TASK_PRIORITY,
+  TASK_STATUS,
+  isApprovedSuggestion,
+} from '@/lib/domain'
+import { formatFileDate, slugify } from '@/lib/utils'
+
+const SCOPED_TYPES: Suggestion['type'][] = [
+  'requisito',
+  'funcionalidade',
+  'entregavel',
+]
+
+const generatedAtFormatter = new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'long',
+  timeStyle: 'short',
+})
+
+const shortDateFormatter = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+
+function oneLine(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function sourceQuote(quote: string): string {
+  return `> Trecho do briefing: \u201c${oneLine(quote)}\u201d`
+}
+
+export interface ScopeMarkdownInput {
+  project: Pick<Project, 'name' | 'status'>
+  clientName: string
+  suggestions: Suggestion[]
+  tasks: Task[]
+  history: HistoryEvent[]
+  includeSourceQuotes?: boolean
+  includeDuvidas?: boolean
+  includeRiscos?: boolean
+  includeTasks?: boolean
+  includeHistory?: boolean
+  generatedAt?: Date
+}
+
+export function approvedByType(
+  suggestions: Suggestion[],
+  type: Suggestion['type']
+): Suggestion[] {
+  return suggestions.filter(
+    (suggestion) =>
+      suggestion.type === type && isApprovedSuggestion(suggestion)
+  )
+}
+
+export function approvedScopeItems(suggestions: Suggestion[]): Suggestion[] {
+  return SCOPED_TYPES.flatMap((type) => approvedByType(suggestions, type))
+}
+
+export interface ScopeSection {
+  type: Suggestion['type']
+  label: string
+  items: Suggestion[]
+}
+
+export function scopeSections(suggestions: Suggestion[]): ScopeSection[] {
+  return SCOPED_TYPES.map((type) => ({
+    type,
+    label: SUGGESTION_TYPE[type].plural,
+    items: approvedByType(suggestions, type),
+  })).filter((section) => section.items.length > 0)
+}
+
+/**
+ * Builds the client-facing scope document from approved proposals only.
+ * Pending or rejected proposals never appear in the exported body.
+ */
 export function generateScopeMarkdown({
   project,
+  clientName,
   suggestions,
   tasks,
   history,
+  includeSourceQuotes = true,
   includeDuvidas = true,
   includeRiscos = true,
-}: {
-  project: { name: string; clientId: string }
-  suggestions: Array<{
-    type: string
-    title: string
-    description: string
-    priority: string
-    status: string
-  }>
-  tasks: Array<{
-    title: string
-    description: string
-    status: string
-    priority: string
-  }>
-  history: Array<{
-    type: string
-    title: string
-    description: string
-    createdAt: string
-  }>
-  includeDuvidas?: boolean
-  includeRiscos?: boolean
-}): string {
-  const linhas: string[] = []
+  includeTasks = true,
+  includeHistory = false,
+  generatedAt = new Date(),
+}: ScopeMarkdownInput): string {
+  const lines: string[] = []
+  const scopeItems = approvedScopeItems(suggestions)
+  const pending = suggestions.filter(
+    (suggestion) => suggestion.status === 'pendente'
+  ).length
 
-  linhas.push(`# Escopo do Projeto: ${project.name}`)
-  linhas.push('')
-  linhas.push(`**Cliente:** ${project.clientId}`)
-  linhas.push(`**Gerado em:** ${new Date().toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`)
-  linhas.push('')
+  lines.push(`# Escopo do projeto — ${project.name}`)
+  lines.push('')
+  lines.push(`**Cliente:** ${clientName}  `)
+  lines.push(`**Status do projeto:** ${PROJECT_STATUS[project.status].label}  `)
+  lines.push(`**Gerado em:** ${generatedAtFormatter.format(generatedAt)}`)
+  lines.push('')
+  lines.push(
+    '> Documento baseado apenas em propostas aprovadas na revisão humana. Itens pendentes ou rejeitados não fazem parte do escopo.'
+  )
 
-  // Requisitos
-  const requisitos = suggestions.filter((s) => s.type === 'requisito')
-  if (requisitos.length > 0) {
-    linhas.push('## Requisitos')
-    linhas.push('')
-    requisitos.forEach((r, i) => {
-      linhas.push(`### ${i + 1}. ${r.title}`)
-      linhas.push('')
-      linhas.push(r.description)
-      linhas.push('')
-      linhas.push(`**Prioridade sugerida:** ${r.priority}`)
-      linhas.push(`**Status:** ${r.status}`)
-      linhas.push('')
+  if (pending > 0) {
+    lines.push('')
+    lines.push(
+      `> ${pending} ${pending === 1 ? 'proposta aguarda' : 'propostas aguardam'} revisão e ${pending === 1 ? 'não está incluída' : 'não estão incluídas'} neste documento.`
+    )
+  }
+
+  lines.push('')
+
+  if (scopeItems.length === 0) {
+    lines.push('## Escopo aprovado')
+    lines.push('')
+    lines.push(
+      'Nenhuma proposta de requisito, funcionalidade ou entregável foi aprovada até o momento. Aprove itens na revisão para compor este documento.'
+    )
+    lines.push('')
+  }
+
+  for (const type of SCOPED_TYPES) {
+    const items = approvedByType(suggestions, type)
+    if (items.length === 0) continue
+
+    lines.push(`## ${SUGGESTION_TYPE[type].plural}`)
+    lines.push('')
+
+    items.forEach((item, index) => {
+      lines.push(`### ${index + 1}. ${item.title}`)
+      lines.push('')
+      lines.push(item.description)
+      lines.push('')
+      lines.push(`**Prioridade:** ${TASK_PRIORITY[item.priority].label}`)
+      if (includeSourceQuotes && item.sourceQuote) {
+        lines.push('')
+        lines.push(sourceQuote(item.sourceQuote))
+      }
+      lines.push('')
     })
   }
 
-  // Funcionalidades
-  const funcionalidades = suggestions.filter((s) => s.type === 'funcionalidade')
-  if (funcionalidades.length > 0) {
-    linhas.push('## Funcionalidades')
-    linhas.push('')
-    funcionalidades.forEach((f, i) => {
-      linhas.push(`### ${i + 1}. ${f.title}`)
-      linhas.push('')
-      linhas.push(f.description)
-      linhas.push('')
-      linhas.push(`**Prioridade sugerida:** ${f.priority}`)
-      linhas.push(`**Status:** ${f.status}`)
-      linhas.push('')
-    })
-  }
-
-  // Entregáveis
-  const entregaveis = suggestions.filter((s) => s.type === 'entregavel')
-  if (entregaveis.length > 0) {
-    linhas.push('## Entregáveis')
-    linhas.push('')
-    entregaveis.forEach((e, i) => {
-      linhas.push(`### ${i + 1}. ${e.title}`)
-      linhas.push('')
-      linhas.push(e.description)
-      linhas.push('')
-      linhas.push(`**Prioridade sugerida:** ${e.priority}`)
-      linhas.push(`**Status:** ${e.status}`)
-      linhas.push('')
-    })
-  }
-
-  // Dúvidas
   if (includeDuvidas) {
-    const duvidas = suggestions.filter((s) => s.type === 'duvida')
+    const duvidas = approvedByType(suggestions, 'duvida')
     if (duvidas.length > 0) {
-      linhas.push('## Dúvidas para o cliente')
-      linhas.push('')
-      duvidas.forEach((d, i) => {
-        linhas.push(`### ${i + 1}. ${d.title}`)
-        linhas.push('')
-        linhas.push(d.description)
-        linhas.push('')
+      lines.push('## Dúvidas aprovadas para o cliente')
+      lines.push('')
+      duvidas.forEach((item, index) => {
+        lines.push(`### ${index + 1}. ${item.title}`)
+        lines.push('')
+        lines.push(item.description)
+        lines.push('')
+        if (includeSourceQuotes && item.sourceQuote) {
+          lines.push(sourceQuote(item.sourceQuote))
+          lines.push('')
+        }
       })
     }
   }
 
-  // Riscos
   if (includeRiscos) {
-    const riscos = suggestions.filter((s) => s.type === 'risco')
+    const riscos = approvedByType(suggestions, 'risco')
     if (riscos.length > 0) {
-      linhas.push('## Riscos')
-      linhas.push('')
-      riscos.forEach((r, i) => {
-        linhas.push(`### ${i + 1}. ${r.title}`)
-        linhas.push('')
-        linhas.push(r.description)
-        linhas.push('')
-        linhas.push(`**Severidade:** ${r.priority}`)
-        linhas.push('')
+      lines.push('## Riscos aprovados')
+      lines.push('')
+      riscos.forEach((item, index) => {
+        lines.push(`### ${index + 1}. ${item.title}`)
+        lines.push('')
+        lines.push(item.description)
+        lines.push('')
+        lines.push(`**Severidade:** ${TASK_PRIORITY[item.priority].label}`)
+        if (includeSourceQuotes && item.sourceQuote) {
+          lines.push('')
+          lines.push(sourceQuote(item.sourceQuote))
+        }
+        lines.push('')
       })
     }
   }
 
-  // Tarefas aprovadas
-  const tarefasAprovadas = tasks.filter((t) => t.status === 'concluido')
-  if (tarefasAprovadas.length > 0) {
-    linhas.push('## Tarefas Concluídas')
-    linhas.push('')
-    tarefasAprovadas.forEach((t, i) => {
-      linhas.push(`### ${i + 1}. ${t.title}`)
-      linhas.push('')
-      linhas.push(t.description)
-      linhas.push('')
-      linhas.push(`**Status:** ${t.status}`)
-      linhas.push(`**Prioridade:** ${t.priority}`)
-      linhas.push('')
-    })
+  if (includeTasks && tasks.length > 0) {
+    lines.push('## Plano de tarefas')
+    lines.push('')
+    for (const task of tasks) {
+      const checked = task.status === 'concluido' ? 'x' : ' '
+      lines.push(
+        `- [${checked}] **${task.title}** — ${TASK_STATUS[task.status].label} · prioridade ${TASK_PRIORITY[task.priority].label}`
+      )
+      if (task.description.trim()) {
+        lines.push(`  ${oneLine(task.description)}`)
+      }
+    }
+    lines.push('')
   }
 
-  // Histórico
-  if (history.length > 0) {
-    linhas.push('## Histórico de Alterações')
-    linhas.push('')
-    history
-      .slice()
-      .reverse()
-      .forEach((h) => {
-        linhas.push(`- **${new Date(h.createdAt).toLocaleDateString('pt-BR')}** — ${h.title}: ${h.description}`)
-      })
-    linhas.push('')
+  if (includeHistory && history.length > 0) {
+    lines.push('## Histórico de decisões')
+    lines.push('')
+    for (const event of history) {
+      lines.push(
+        `- **${shortDateFormatter.format(new Date(event.createdAt))}** · ${HISTORY_TYPE[event.type].label} — ${event.title}: ${oneLine(event.description)}`
+      )
+    }
+    lines.push('')
   }
 
-  linhas.push('---')
-  linhas.push('')
-  linhas.push('*Gerado por BriefForge — protótipo front-end.*')
+  lines.push('---')
+  lines.push('')
+  lines.push(
+    '*Gerado por BriefForge em modo de demonstração. A análise de IA é simulada; o escopo reflete apenas decisões humanas de aprovação.*'
+  )
 
-  return linhas.join('\n')
+  return lines.join('\n')
+}
+
+export function buildScopeFilename(
+  projectName: string,
+  date = new Date()
+): string {
+  const slug = slugify(projectName) || 'projeto'
+  return `escopo-${slug}-${formatFileDate(date)}.md`
 }
