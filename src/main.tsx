@@ -8,6 +8,8 @@ import { ErrorBoundary } from '@/components/ui/error-boundary'
 import './index.css'
 import { router } from '@/app/routes'
 import { useStore } from '@/store'
+import { Analytics } from "@vercel/analytics/react"
+import { SpeedInsights } from "@vercel/speed-insights/react"
 
 useStore.getState().seedIfEmpty()
 
@@ -21,6 +23,8 @@ createRoot(document.getElementById('root')!).render(
           </ErrorBoundary>
         </ToastProvider>
       </TooltipProvider>
+      <Analytics />
+      <SpeedInsights />
     </ThemeProvider>
   </StrictMode>
 )

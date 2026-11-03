@@ -179,6 +179,8 @@
 }
 
 @theme {
+  --spacing: 0.25rem;
+
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
