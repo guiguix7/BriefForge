@@ -301,7 +301,7 @@ A Etapa 1 foi aprovada sem ressalvas. O tipo `funcionalidade` permanece neutro e
 - Botões e campos usam o raio de controle e os aliases existentes do Tailwind.
 - Painéis usam o raio de 14 px por meio de `rounded-lg` remapeado.
 - Badges usam raio de 3 px em vez de cápsulas universais.
-- `HighlightTag` codifica requisito, dúvida, risco, entregável, aprovado e neutro. `funcionalidade` usa o estado neutro.
+- `HighlightTag` codifica categorias e `HighlightMark` aplica a mesma gramática visual a trechos inline do briefing. `funcionalidade` usa o estado neutro.
 - `TaskStatusGlyph` desenha estados pendente, andamento, revisão e concluído.
 - `TaskPriorityGlyph` desenha uma a quatro barras; prioridade crítica recebe sinal de exclamação e cor de alerta.
 - A marca usa o símbolo de duas linhas, com a segunda destacada em amarelo.
@@ -315,6 +315,7 @@ A Etapa 1 foi aprovada sem ressalvas. O tipo `funcionalidade` permanece neutro e
 - `src/components/domain-badges.tsx`
 - `src/components/domain-glyphs.tsx`
 - `src/components/ui/highlight-tag.tsx`
+- `src/components/ui/highlight-mark.tsx`
 - `src/components/ui/button.tsx`
 - `src/components/ui/input.tsx`
 - `src/components/ui/badge.tsx`
