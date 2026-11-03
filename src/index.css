@@ -233,6 +233,44 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-variant-numeric: tabular-nums;
 }
 
+.highlight-mark {
+  color: var(--marker-ink);
+  border-radius: var(--radius-marker);
+  padding-inline: 0.08em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.highlight-mark[data-kind="requisito"] {
+  background: var(--m-requisito);
+}
+
+.highlight-mark[data-kind="duvida"] {
+  background: color-mix(in srgb, var(--m-duvida) 24%, transparent);
+  text-decoration: underline wavy var(--m-duvida);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.highlight-mark[data-kind="risco"] {
+  background: color-mix(in srgb, var(--m-risco) 30%, transparent);
+  border-bottom: 1px dashed var(--m-risco);
+}
+
+.highlight-mark[data-kind="entregavel"] {
+  outline: 1px solid var(--m-entregavel);
+  outline-offset: 1px;
+}
+
+.highlight-mark[data-kind="aprovado"] {
+  background: var(--m-aprovado);
+}
+
+.highlight-mark[data-kind="neutro"] {
+  color: inherit;
+  background: var(--surface-muted);
+}
+
 .highlight-tag {
   display: inline-flex;
   width: fit-content;
