@@ -17,7 +17,7 @@ export function BrandMark({ className, size = 'md' }: BrandMarkProps) {
   return (
     <span
       className={cn(
-        'relative inline-grid shrink-0 place-items-center overflow-hidden rounded-[3px] border border-white/10 bg-[var(--ink)]',
+        'relative inline-grid shrink-0 place-items-center overflow-hidden rounded-[3px] border border-white/10 bg-[var(--marker-ink)]',
         markSizes[size],
         className
       )}
