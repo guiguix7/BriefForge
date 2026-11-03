@@ -36,15 +36,17 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
-  font-feature-settings: "cv11", "ss01";
+  font-feature-settings: "ss01";
+  font-optical-sizing: auto;
+  caret-color: var(--cobalt);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
 }
 
 ::selection {
-  background: var(--accent-soft);
-  color: var(--ink);
+  background: var(--m-requisito);
+  color: var(--marker-ink);
 }
 
 :focus-visible {
@@ -196,18 +198,18 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .text-label {
-  font-size: var(--text-xs);
+  font-size: 0.8125rem;
   line-height: 1.25;
-  font-weight: 600;
-  letter-spacing: var(--tracking-wide);
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .text-meta {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   line-height: 1.35;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
@@ -217,6 +219,72 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .prose-measure {
   max-width: var(--prose-measure);
+}
+
+.font-client {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  font-weight: 400;
+}
+
+.font-code {
+  font-family: var(--font-code);
+  font-variant-ligatures: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.highlight-tag {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-marker);
+  padding: 0.125rem 0.5rem;
+  color: var(--marker-ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.highlight-tag[data-kind="requisito"] {
+  background: var(--m-requisito);
+}
+
+.highlight-tag[data-kind="duvida"] {
+  background: color-mix(in srgb, var(--m-duvida) 24%, transparent);
+  text-decoration: underline wavy var(--m-duvida);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.highlight-tag[data-kind="risco"] {
+  background: color-mix(in srgb, var(--m-risco) 30%, transparent);
+  border-bottom: 1px dashed var(--m-risco);
+}
+
+.highlight-tag[data-kind="entregavel"] {
+  border-color: var(--m-entregavel);
+  background: transparent;
+}
+
+.highlight-tag[data-kind="aprovado"] {
+  background: var(--m-aprovado);
+}
+
+.highlight-tag[data-kind="neutro"] {
+  border-color: var(--line);
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+}
+
+[data-theme="dark"] .highlight-tag[data-kind="duvida"] {
+  background: color-mix(in srgb, var(--m-duvida) 18%, transparent);
+}
+
+[data-theme="dark"] .highlight-tag[data-kind="risco"] {
+  background: color-mix(in srgb, var(--m-risco) 20%, transparent);
 }
 
 /* ==========================================================================
