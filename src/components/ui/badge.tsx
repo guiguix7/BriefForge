@@ -32,7 +32,7 @@ const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
     <span
       ref={ref}
       className={cn(
-        'inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5',
+        'inline-flex w-fit items-center gap-1.5 rounded-[var(--radius-marker)] border px-2 py-0.5',
         'text-xs font-medium leading-4 whitespace-nowrap',
         toneClasses[tone],
         className
