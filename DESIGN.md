@@ -273,3 +273,54 @@ A ordem poderá mudar somente por dependência técnica observada. Ao final de c
 - [ ] Confirmar que o site técnico apresentará o estado atual como protótipo local, sem afirmar SQLite/backend/IA real.
 
 **Nenhuma interface foi alterada nesta etapa.** A implementação começa somente depois da validação desta direção.
+
+
+## 9. Design System — Etapa 2 implementada
+
+A Etapa 1 foi aprovada sem ressalvas. O tipo `funcionalidade` permanece neutro e não recebe uma nova cor semântica.
+
+### Tokens e temas
+
+- Tokens centralizados em `src/styles/tokens.css` para papel, folha, tinta, cobalto, alerta e os cinco marca-textos aprovados.
+- Tema escuro baseado nos valores aprovados; os marca-textos mantêm os mesmos matizes e usam `--marker-ink` como texto.
+- Aliases de Tailwind e dos componentes existentes foram preservados para reduzir migração desnecessária.
+- Raios de 3 px, 8 px e 14 px representam marca-textos, controles e painéis.
+- A sombra do sistema fica reservada às superfícies flutuantes. Controles e painéis comuns não recebem elevação.
+- Escala de espaçamento, camadas, timings, larguras e medida de leitura estão centralizadas.
+
+### Tipografia e ativos locais
+
+- Bricolage Grotesque variável para interface, títulos, números e marca.
+- Newsreader variável regular e itálica para a voz do cliente e textos longos.
+- JetBrains Mono permanece disponível por meio de `--font-code` para código/JSON; os consumidores antigos de `font-mono` foram alinhados à voz de interface.
+- As fontes variáveis são servidas localmente em `public/fonts/`, com `font-display: swap` e preload das duas famílias críticas.
+- Os arquivos de licença SIL OFL 1.1 acompanham os arquivos das fontes.
+
+### Componentes-base
+
+- Botões e campos usam o raio de controle e os aliases existentes do Tailwind.
+- Painéis usam o raio de 14 px por meio de `rounded-lg` remapeado.
+- Badges usam raio de 3 px em vez de cápsulas universais.
+- `HighlightTag` codifica requisito, dúvida, risco, entregável, aprovado e neutro. `funcionalidade` usa o estado neutro.
+- `TaskStatusGlyph` desenha estados pendente, andamento, revisão e concluído.
+- `TaskPriorityGlyph` desenha uma a quatro barras; prioridade crítica recebe sinal de exclamação e cor de alerta.
+- A marca usa o símbolo de duas linhas, com a segunda destacada em amarelo.
+
+### Arquivos importantes
+
+- `src/styles/tokens.css`
+- `src/index.css`
+- `src/app/theme.tsx`
+- `src/components/brand-mark.tsx`
+- `src/components/domain-badges.tsx`
+- `src/components/domain-glyphs.tsx`
+- `src/components/ui/highlight-tag.tsx`
+- `src/components/ui/button.tsx`
+- `src/components/ui/input.tsx`
+- `src/components/ui/badge.tsx`
+- `index.html`
+- `public/fonts/`
+
+### Validação desta etapa
+
+As alterações foram gravadas na branch `design/phase-2-design-system`. O ambiente utilizado não disponibiliza um checkout local executável do repositório nem um terminal de projeto. Por isso, `npm run build`, `npm run lint`, testes, axe, Lighthouse e capturas Playwright ainda não foram executados; não há alegação de que esses verificadores passaram. A Etapa 3 deverá começar depois da validação desta etapa.
