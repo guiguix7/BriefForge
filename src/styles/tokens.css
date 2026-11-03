@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
 
 @font-face {
   font-family: "Bricolage Grotesque";
@@ -267,10 +269,10 @@
   --radius-xl: var(--radius-panel);
   --radius-full: 9999px;
 
-  --shadow-xs: var(--shadow-xs);
-  --shadow-sm: var(--shadow-sm);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: 0 12px 32px -8px rgba(18, 38, 58, 0.28);
+  --shadow-lg: 0 12px 32px -8px rgba(18, 38, 58, 0.28);
 
-  --ease-out: var(--ease-out);
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
