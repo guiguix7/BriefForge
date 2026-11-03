@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const inputBase = [
-  'flex w-full rounded-md border border-line bg-surface-raised px-3 text-sm text-ink',
+  'flex w-full rounded-[var(--radius-control)] border border-line bg-surface-raised px-3 text-sm text-ink',
   'shadow-xs transition-[border-color,box-shadow,background-color]',
   'placeholder:text-ink-muted/80',
   'hover:border-line-strong',
